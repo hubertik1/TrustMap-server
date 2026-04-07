@@ -1,0 +1,6 @@
+@TrustMap.Api_HostAddress = http://localhost:5104
+
+GET {{TrustMap.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

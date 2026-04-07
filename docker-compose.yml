@@ -1,0 +1,50 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: trustmap-mysql
+    environment:
+      MYSQL_DATABASE: trustmap
+      MYSQL_USER: trustmap
+      MYSQL_PASSWORD: trustmap
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - trustmap_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trustmap-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: Server=mysql;Port=3306;Database=trustmap;User=trustmap;Password=trustmap;
+      Database__ServerVersion: 8.4.0
+      Database__ApplyMigrationsOnStartup: "true"
+      Jwt__Issuer: TrustMap.Api
+      Jwt__Audience: TrustMap.iOS
+      Jwt__SigningKey: trustmap-local-development-signing-key-change-before-production
+      Jwt__AccessTokenMinutes: "15"
+      Jwt__RefreshTokenDays: "30"
+      AppleAuth__Issuer: https://appleid.apple.com
+      AppleAuth__AllowedAudiences__0: com.example.trustmap
+      PhotoStorage__Provider: local
+      PhotoStorage__RootPath: /app/storage/photos
+      PhotoStorage__RequestPath: /uploads
+    ports:
+      - "8080:8080"
+    volumes:
+      - trustmap_photo_data:/app/storage/photos
+
+volumes:
+  trustmap_mysql_data:
+  trustmap_photo_data:

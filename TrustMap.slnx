@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TrustMap.Api/TrustMap.Api.csproj" />
+    <Project Path="src/TrustMap.Domain/TrustMap.Domain.csproj" />
+    <Project Path="src/TrustMap.Infrastructure/TrustMap.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TrustMap.IntegrationTests/TrustMap.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,92 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TrustMap.Api.Common;
+using TrustMap.Api.Features.Common;
+using TrustMap.Api.Features.Feed;
+using TrustMap.Api.Services;
+using TrustMap.Infrastructure.Persistence;
+
+namespace TrustMap.Api.Controllers;
+
+[ApiController]
+[Authorize]
+[Route("feed")]
+public sealed class FeedController(
+    TrustMapDbContext dbContext,
+    SocialGraphService socialGraphService) : ControllerBase
+{
+    [HttpGet]
+    [ProducesResponseType<FeedResponseDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<FeedResponseDto>> GetFeed(
+        [FromQuery] DateTime? beforeUtc,
+        [FromQuery] int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        take = Math.Clamp(take, 1, 100);
+        var cursor = beforeUtc ?? DateTime.MaxValue;
+
+        var placeReviews = await dbContext.PlaceReviews
+            .AsNoTracking()
+            .Include(x => x.AuthorUser)
+            .Include(x => x.Place)
+            .Include(x => x.Photos)
+            .VisibleInSocialScope(currentUserId, friendIds)
+            .Where(x => x.UpdatedAt < cursor)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        var dishReviews = await dbContext.DishReviews
+            .AsNoTracking()
+            .Include(x => x.AuthorUser)
+            .Include(x => x.Place)
+            .Include(x => x.Photos)
+            .VisibleInSocialScope(currentUserId, friendIds)
+            .Where(x => x.UpdatedAt < cursor)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        var items = placeReviews
+            .Select(x => new FeedItemDto(
+                FeedActivityType.PlaceReview,
+                x.Id,
+                x.Visibility,
+                x.CreatedAt,
+                x.UpdatedAt,
+                x.AuthorUser.ToSummaryDto(),
+                x.Place.ToSummaryDto(),
+                x.Rating,
+                x.Body,
+                x.Title,
+                null,
+                x.Photos.OrderBy(photo => photo.CreatedAt).Select(photo => photo.ToDto()).ToArray()))
+            .Concat(dishReviews.Select(x => new FeedItemDto(
+                FeedActivityType.DishReview,
+                x.Id,
+                x.Visibility,
+                x.CreatedAt,
+                x.UpdatedAt,
+                x.AuthorUser.ToSummaryDto(),
+                x.Place.ToSummaryDto(),
+                x.Rating,
+                x.Body,
+                null,
+                x.DishName,
+                x.Photos.OrderBy(photo => photo.CreatedAt).Select(photo => photo.ToDto()).ToArray())))
+            .OrderByDescending(x => x.UpdatedAtUtc)
+            .Take(take + 1)
+            .ToList();
+
+        var nextCursorUtc = items.Count > take ? items[^1].UpdatedAtUtc : (DateTime?)null;
+        if (items.Count > take)
+        {
+            items = items.Take(take).ToList();
+        }
+
+        return Ok(new FeedResponseDto(items, nextCursorUtc));
+    }
+}
