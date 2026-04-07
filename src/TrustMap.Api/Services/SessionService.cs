@@ -35,11 +35,10 @@ public sealed class SessionService(
         if (appleIdentity is null)
         {
             var resolvedDisplayName = ResolveDisplayName(displayName, persistedEmail);
-            var resolvedHandle = await handleGenerator.GenerateUniqueHandleAsync(
-                preferredHandle,
-                resolvedDisplayName,
+            var resolvedHandle = await handleGenerator.GenerateInitialAppleHandleAsync(
                 persistedEmail,
-                null,
+                resolvedDisplayName,
+                preferredHandle,
                 cancellationToken);
 
             user = new User(Guid.CreateVersion7(), resolvedHandle, resolvedDisplayName, persistedEmail);

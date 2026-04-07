@@ -34,11 +34,12 @@ public sealed class MeController(
         var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
             ?? throw ApiException.NotFound("User not found.", "user_not_found");
 
-        var handle = await handleGenerator.GenerateUniqueHandleAsync(
+        var handle = await handleGenerator.GenerateUpdatedHandleAsync(
             request.Handle,
+            user.Handle,
             request.DisplayName,
             user.Email,
-            user.Id,
+            currentUserId,
             cancellationToken);
 
         user.UpdateProfile(handle, request.DisplayName, request.Bio, request.AvatarUrl);

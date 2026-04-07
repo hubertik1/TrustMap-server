@@ -52,9 +52,9 @@ public static partial class TextNormalizer
     [GeneratedRegex(@"\s+")]
     private static partial Regex MultiWhitespace();
 
-    [GeneratedRegex(@"[^a-z0-9._-]+")]
+    [GeneratedRegex(@"[^a-z0-9._#-]+")]
     private static partial Regex InvalidHandleCharacter();
 
-    [GeneratedRegex(@"[-._]{2,}")]
+    [GeneratedRegex(@"[-._#]{2,}")]
     private static partial Regex MultiSeparator();
 }
