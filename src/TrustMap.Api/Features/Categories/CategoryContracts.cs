@@ -21,3 +21,13 @@ public sealed class CreateCategoryRequest
     [StringLength(80)]
     public string? IconName { get; init; }
 }
+
+public sealed class UpdateCategoryRequest
+{
+    [Required]
+    [StringLength(120)]
+    public string Name { get; init; } = null!;
+
+    [StringLength(80)]
+    public string? IconName { get; init; }
+}

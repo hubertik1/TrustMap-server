@@ -122,6 +122,73 @@ public sealed class CategoriesController(
         return Ok(category.ToDto(currentUserId));
     }
 
+    [HttpPatch("{id:guid}")]
+    [ProducesResponseType<CategoryDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<CategoryDto>> Update(
+        Guid id,
+        [FromBody] UpdateCategoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var category = await dbContext.Categories
+            .Include(x => x.OwnerUser)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw ApiException.NotFound("Category not found.", "category_not_found");
+
+        if (category.IsDefault || category.OwnerUserId != currentUserId)
+        {
+            throw ApiException.Forbidden("Only your custom categories can be edited.", "category_forbidden");
+        }
+
+        var normalizedName = Domain.Common.TextNormalizer.NormalizeForLookup(request.Name);
+        var duplicateExists = await QueryAvailableCategories(currentUserId)
+            .AnyAsync(x => x.Id != id && x.NormalizedName == normalizedName, cancellationToken);
+
+        if (duplicateExists)
+        {
+            throw ApiException.Conflict("A category with this name already exists in your list.", "category_name_taken");
+        }
+
+        category.Rename(request.Name, request.IconName);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(category.ToDto(currentUserId));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var category = await dbContext.Categories
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw ApiException.NotFound("Category not found.", "category_not_found");
+
+        if (category.IsDefault)
+        {
+            throw ApiException.Forbidden("Default categories cannot be deleted.", "category_forbidden");
+        }
+
+        if (category.OwnerUserId == currentUserId)
+        {
+            dbContext.Categories.Remove(category);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return NoContent();
+        }
+
+        var savedCategory = await dbContext.UserSavedCategories
+            .SingleOrDefaultAsync(x => x.UserId == currentUserId && x.CategoryId == id, cancellationToken);
+
+        if (savedCategory is null)
+        {
+            throw ApiException.Forbidden("Only your categories can be removed from this list.", "category_forbidden");
+        }
+
+        dbContext.UserSavedCategories.Remove(savedCategory);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
     private IQueryable<Category> QueryAvailableCategories(Guid currentUserId)
     {
         var savedCategoryIds = dbContext.UserSavedCategories
