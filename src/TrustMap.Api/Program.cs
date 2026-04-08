@@ -92,8 +92,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
+else
+{
+    app.UseHttpsRedirection();
+}
 
 var photoStorageOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PhotoStorageOptions>>().Value;
 if (string.Equals(photoStorageOptions.Provider, "local", StringComparison.OrdinalIgnoreCase))
