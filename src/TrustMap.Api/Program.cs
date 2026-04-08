@@ -46,6 +46,11 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.PostConfigure<PhotoStorageOptions>(options =>
+{
+    options.RootPath = Path.GetFullPath(options.RootPath, builder.Environment.ContentRootPath);
+});
+
 builder.Services.AddTrustMapInfrastructure(builder.Configuration);
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();
