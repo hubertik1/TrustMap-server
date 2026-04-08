@@ -50,6 +50,12 @@ public sealed class User
 
     public ICollection<Photo> Photos { get; } = new List<Photo>();
 
+    public ICollection<Category> OwnedCategories { get; } = new List<Category>();
+
+    public ICollection<PlaceCategoryAssignment> PlaceCategoryAssignments { get; } = new List<PlaceCategoryAssignment>();
+
+    public ICollection<UserSavedCategory> SavedCategories { get; } = new List<UserSavedCategory>();
+
     public void UpdateProfile(string handle, string displayName, string? bio, string? avatarUrl)
     {
         Handle = TextNormalizer.NormalizeHandle(handle);

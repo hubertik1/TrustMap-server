@@ -16,6 +16,8 @@ public sealed record PhotoDto(
 public sealed record PlaceReviewDto(
     Guid Id,
     Guid PlaceId,
+    Guid? CategoryId,
+    string? CategoryName,
     VisibilityLevel Visibility,
     int Rating,
     string? Title,
@@ -30,6 +32,8 @@ public sealed record DishReviewDto(
     Guid Id,
     Guid PlaceId,
     Guid? PlaceReviewId,
+    Guid? CategoryId,
+    string? CategoryName,
     VisibilityLevel Visibility,
     string DishName,
     int Rating,
@@ -48,6 +52,9 @@ public sealed class CreatePlaceReviewRequest
     public Guid PlaceId { get; init; }
 
     [Required]
+    public Guid CategoryId { get; init; }
+
+    [Required]
     public VisibilityLevel Visibility { get; init; }
 
     [Range(1, 5)]
@@ -62,6 +69,9 @@ public sealed class CreatePlaceReviewRequest
 
 public sealed class UpdatePlaceReviewRequest
 {
+    [Required]
+    public Guid CategoryId { get; init; }
+
     [Required]
     public VisibilityLevel Visibility { get; init; }
 
@@ -79,6 +89,9 @@ public sealed class CreateDishReviewRequest
 {
     [Required]
     public Guid PlaceId { get; init; }
+
+    [Required]
+    public Guid CategoryId { get; init; }
 
     public Guid? PlaceReviewId { get; init; }
 
@@ -104,6 +117,9 @@ public sealed class CreateDishReviewRequest
 
 public sealed class UpdateDishReviewRequest
 {
+    [Required]
+    public Guid CategoryId { get; init; }
+
     [Required]
     public VisibilityLevel Visibility { get; init; }
 

@@ -31,6 +31,9 @@ public static class DtoMapper
             isMe);
 
     public static PlaceSummaryDto ToSummaryDto(this Place place) =>
+        place.ToSummaryDto([]);
+
+    public static PlaceSummaryDto ToSummaryDto(this Place place, IReadOnlyList<string> categoryNames) =>
         new(
             place.Id,
             place.Name,
@@ -38,15 +41,23 @@ public static class DtoMapper
             place.City,
             place.CountryCode,
             place.Latitude,
-            place.Longitude);
+            place.Longitude,
+            categoryNames);
 
     public static PhotoDto ToDto(this Photo photo) =>
         new(photo.Id, photo.PublicUrl, photo.ContentType, photo.SizeBytes, photo.CreatedAt);
 
     public static PlaceReviewDto ToDto(this PlaceReview review) =>
+        review.ToDto(
+            review.Place.CategoryAssignments
+                .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
+
+    public static PlaceReviewDto ToDto(this PlaceReview review, PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
             review.PlaceId,
+            categoryAssignment?.CategoryId,
+            categoryAssignment?.Category.Name,
             review.Visibility,
             review.Rating,
             review.Title,
@@ -58,10 +69,17 @@ public static class DtoMapper
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 
     public static DishReviewDto ToDto(this DishReview review) =>
+        review.ToDto(
+            review.Place.CategoryAssignments
+                .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
+
+    public static DishReviewDto ToDto(this DishReview review, PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
             review.PlaceId,
             review.PlaceReviewId,
+            categoryAssignment?.CategoryId,
+            categoryAssignment?.Category.Name,
             review.Visibility,
             review.DishName,
             review.Rating,

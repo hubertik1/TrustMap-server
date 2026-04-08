@@ -63,6 +63,48 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("apple_identities", (string)null);
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("IconName")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDefault", "NormalizedName");
+
+                    b.HasIndex("OwnerUserId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("categories", (string)null);
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.DishReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -341,6 +383,39 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("places", (string)null);
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.PlaceCategoryAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("PlaceId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("CategoryId", "PlaceId");
+
+                    b.HasIndex("PlaceId", "AssignedByUserId")
+                        .IsUnique();
+
+                    b.ToTable("place_category_assignments", (string)null);
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.PlaceReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -493,6 +568,24 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserSavedCategory", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("UserId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("user_saved_categories", (string)null);
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.AppleIdentity", b =>
                 {
                     b.HasOne("TrustMap.Domain.Entities.User", "User")
@@ -502,6 +595,16 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustMap.Domain.Entities.Category", b =>
+                {
+                    b.HasOne("TrustMap.Domain.Entities.User", "OwnerUser")
+                        .WithMany("OwnedCategories")
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("OwnerUser");
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.DishReview", b =>
@@ -611,6 +714,33 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.PlaceCategoryAssignment", b =>
+                {
+                    b.HasOne("TrustMap.Domain.Entities.User", "AssignedByUser")
+                        .WithMany("PlaceCategoryAssignments")
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TrustMap.Domain.Entities.Category", "Category")
+                        .WithMany("PlaceAssignments")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TrustMap.Domain.Entities.Place", "Place")
+                        .WithMany("CategoryAssignments")
+                        .HasForeignKey("PlaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedByUser");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Place");
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.PlaceReview", b =>
                 {
                     b.HasOne("TrustMap.Domain.Entities.User", "AuthorUser")
@@ -641,6 +771,32 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserSavedCategory", b =>
+                {
+                    b.HasOne("TrustMap.Domain.Entities.Category", "Category")
+                        .WithMany("SavedByUsers")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TrustMap.Domain.Entities.User", "User")
+                        .WithMany("SavedCategories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustMap.Domain.Entities.Category", b =>
+                {
+                    b.Navigation("PlaceAssignments");
+
+                    b.Navigation("SavedByUsers");
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.DishReview", b =>
                 {
                     b.Navigation("Photos");
@@ -648,6 +804,8 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TrustMap.Domain.Entities.Place", b =>
                 {
+                    b.Navigation("CategoryAssignments");
+
                     b.Navigation("DishReviews");
 
                     b.Navigation("Photos");
@@ -668,11 +826,17 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.Navigation("DishReviews");
 
+                    b.Navigation("OwnedCategories");
+
                     b.Navigation("Photos");
+
+                    b.Navigation("PlaceCategoryAssignments");
 
                     b.Navigation("PlaceReviews");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("SavedCategories");
                 });
 #pragma warning restore 612, 618
         }

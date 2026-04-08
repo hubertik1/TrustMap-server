@@ -38,7 +38,8 @@ public sealed record PlaceSummaryDto(
     string? City,
     string? CountryCode,
     double Latitude,
-    double Longitude);
+    double Longitude,
+    IReadOnlyList<string> CategoryNames);
 
 public sealed record PlaceDetailDto(
     Guid Id,
@@ -48,6 +49,7 @@ public sealed record PlaceDetailDto(
     string? CountryCode,
     double Latitude,
     double Longitude,
+    IReadOnlyList<string> CategoryNames,
     int VisiblePlaceReviewCount,
     int VisibleDishReviewCount,
     double? AveragePlaceRating,

@@ -17,6 +17,12 @@ public sealed class TrustMapDbContext(DbContextOptions<TrustMapDbContext> option
 
     public DbSet<Place> Places => Set<Place>();
 
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<PlaceCategoryAssignment> PlaceCategoryAssignments => Set<PlaceCategoryAssignment>();
+
+    public DbSet<UserSavedCategory> UserSavedCategories => Set<UserSavedCategory>();
+
     public DbSet<PlaceReview> PlaceReviews => Set<PlaceReview>();
 
     public DbSet<DishReview> DishReviews => Set<DishReview>();

@@ -97,6 +97,22 @@ public sealed class PlacesController(
         var viewerDishReviewCount = await visibleDishReviewsQuery
             .CountAsync(x => x.AuthorUserId == currentUserId, cancellationToken);
 
+        var visibleContributorIds = await visiblePlaceReviewsQuery
+            .Select(x => x.AuthorUserId)
+            .Concat(visibleDishReviewsQuery.Select(x => x.AuthorUserId))
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var categoryNames = visibleContributorIds.Count == 0
+            ? []
+            : await dbContext.PlaceCategoryAssignments
+                .AsNoTracking()
+                .Where(x => x.PlaceId == id && visibleContributorIds.Contains(x.AssignedByUserId))
+                .Select(x => x.Category.Name)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync(cancellationToken);
+
         var latestPlaceActivity = await visiblePlaceReviewsQuery
             .OrderByDescending(x => x.UpdatedAt)
             .Select(x => (DateTime?)x.UpdatedAt)
@@ -121,6 +137,7 @@ public sealed class PlacesController(
             place.CountryCode,
             place.Latitude,
             place.Longitude,
+            categoryNames,
             visiblePlaceReviewCount,
             visibleDishReviewCount,
             averagePlaceRating,

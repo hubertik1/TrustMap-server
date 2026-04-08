@@ -52,6 +52,7 @@ builder.Services.PostConfigure<PhotoStorageOptions>(options =>
 });
 
 builder.Services.AddTrustMapInfrastructure(builder.Configuration);
+builder.Services.AddScoped<CategoryAssignmentService>();
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<SocialGraphService>();

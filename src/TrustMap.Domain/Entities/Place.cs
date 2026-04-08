@@ -65,6 +65,8 @@ public sealed class Place
 
     public ICollection<Photo> Photos { get; } = new List<Photo>();
 
+    public ICollection<PlaceCategoryAssignment> CategoryAssignments { get; } = new List<PlaceCategoryAssignment>();
+
     public void Update(
         string name,
         string address,

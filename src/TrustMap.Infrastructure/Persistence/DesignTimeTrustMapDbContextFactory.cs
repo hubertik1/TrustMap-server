@@ -9,7 +9,7 @@ public sealed class DesignTimeTrustMapDbContextFactory : IDesignTimeDbContextFac
     {
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__Database")
-            ?? "Server=localhost;Port=3306;Database=trustmap;User=root;Password=trustmap;";
+            ?? "Server=localhost;Port=3306;Database=trustmap;User=trustmap;Password=trustmap;";
 
         var optionsBuilder = new DbContextOptionsBuilder<TrustMapDbContext>();
         optionsBuilder.UseMySql(

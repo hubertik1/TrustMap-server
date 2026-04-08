@@ -22,6 +22,7 @@ public sealed class MapController(
         [FromQuery] double? south,
         [FromQuery] double? east,
         [FromQuery] double? west,
+        [FromQuery] Guid? categoryId,
         [FromQuery] int take = 250,
         CancellationToken cancellationToken = default)
     {
@@ -33,6 +34,7 @@ public sealed class MapController(
 
         var currentUserId = User.GetRequiredUserId();
         var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var visibleUserIds = friendIds.Append(currentUserId).ToHashSet();
         take = Math.Clamp(take, 1, 500);
 
         var placeReviewQuery = dbContext.PlaceReviews
@@ -86,6 +88,28 @@ public sealed class MapController(
                 x.Place.Longitude))
             .ToListAsync(cancellationToken);
 
+        var categoryAssignmentsQuery = dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .Where(x => visibleUserIds.Contains(x.AssignedByUserId));
+
+        if (hasBounds)
+        {
+            categoryAssignmentsQuery = categoryAssignmentsQuery.Where(x =>
+                x.Place.Latitude <= north!.Value
+                && x.Place.Latitude >= south!.Value
+                && x.Place.Longitude <= east!.Value
+                && x.Place.Longitude >= west!.Value);
+        }
+
+        if (categoryId.HasValue)
+        {
+            categoryAssignmentsQuery = categoryAssignmentsQuery.Where(x => x.CategoryId == categoryId.Value);
+        }
+
+        var categoryAssignments = await categoryAssignmentsQuery
+            .Select(x => new MapCategorySeed(x.PlaceId, x.AssignedByUserId, x.Category.Name))
+            .ToListAsync(cancellationToken);
+
         var grouped = placeReviews
             .GroupBy(x => x.PlaceId)
             .ToDictionary(
@@ -127,7 +151,18 @@ public sealed class MapController(
             .GroupBy(x => x.PlaceId)
             .ToDictionary(x => x.Key, x => x.Count());
 
+        var categoryNamesByPlace = categoryAssignments
+            .Where(x => grouped.TryGetValue(x.PlaceId, out var aggregation) && aggregation.Contributors.Contains(x.AssignedByUserId))
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(item => item.CategoryName)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(item => item)
+                    .ToArray());
+
         var result = grouped
+            .Where(x => !categoryId.HasValue || categoryNamesByPlace.ContainsKey(x.Key))
             .Select(x =>
             {
                 var place = x.Value.Place;
@@ -139,6 +174,7 @@ public sealed class MapController(
                     place.CountryCode,
                     place.Latitude,
                     place.Longitude,
+                    categoryNamesByPlace.GetValueOrDefault(x.Key, []),
                     x.Value.PlaceReviewCount,
                     dishCounts.GetValueOrDefault(x.Key, 0),
                     x.Value.AverageRating,
@@ -164,6 +200,11 @@ file sealed record MapActivitySeed(
     string? CountryCode,
     double Latitude,
     double Longitude);
+
+file sealed record MapCategorySeed(
+    Guid PlaceId,
+    Guid AssignedByUserId,
+    string CategoryName);
 
 file sealed record MapAggregation(
     MapActivitySeed Place,

@@ -17,6 +17,7 @@ namespace TrustMap.Api.Controllers;
 public sealed class DishReviewsController(
     TrustMapDbContext dbContext,
     SocialGraphService socialGraphService,
+    CategoryAssignmentService categoryAssignmentService,
     IPhotoStorage photoStorage,
     ILogger<DishReviewsController> logger) : ControllerBase
 {
@@ -37,6 +38,8 @@ public sealed class DishReviewsController(
             .AsNoTracking()
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
+                .ThenInclude(x => x.CategoryAssignments)
+                .ThenInclude(x => x.Category)
             .Include(x => x.Photos)
             .VisibleToViewer(currentUserId, friendIds);
 
@@ -74,6 +77,8 @@ public sealed class DishReviewsController(
             .AsNoTracking()
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
+                .ThenInclude(x => x.CategoryAssignments)
+                .ThenInclude(x => x.Category)
             .Include(x => x.Photos)
             .VisibleToViewer(currentUserId, friendIds)
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -116,12 +121,15 @@ public sealed class DishReviewsController(
             request.CurrencyCode);
 
         dbContext.DishReviews.Add(review);
+        await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, place.Id, request.CategoryId, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var created = await dbContext.DishReviews
             .AsNoTracking()
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
+                .ThenInclude(x => x.CategoryAssignments)
+                .ThenInclude(x => x.Category)
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == review.Id, cancellationToken);
 
@@ -149,8 +157,19 @@ public sealed class DishReviewsController(
         }
 
         review.Update(request.Visibility, request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
+        await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(review.ToDto());
+
+        var updated = await dbContext.DishReviews
+            .AsNoTracking()
+            .Include(x => x.AuthorUser)
+            .Include(x => x.Place)
+                .ThenInclude(x => x.CategoryAssignments)
+                .ThenInclude(x => x.Category)
+            .Include(x => x.Photos)
+            .SingleAsync(x => x.Id == id, cancellationToken);
+
+        return Ok(updated.ToDto());
     }
 
     [HttpDelete("{id:guid}")]
@@ -169,7 +188,10 @@ public sealed class DishReviewsController(
         }
 
         var storageKeys = review.Photos.Select(x => x.StorageKey).ToArray();
+        var placeId = review.PlaceId;
         dbContext.DishReviews.Remove(review);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await categoryAssignmentService.RemoveAssignmentIfUnusedAsync(currentUserId, placeId, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         foreach (var storageKey in storageKeys)
