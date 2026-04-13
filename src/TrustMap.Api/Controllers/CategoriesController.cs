@@ -23,12 +23,26 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var categories = await QueryAvailableCategories(currentUserId)
-            .OrderByDescending(x => x.IsDefault)
-            .ThenBy(x => x.OwnerUserId == currentUserId ? 0 : 1)
-            .ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
 
-        return Ok(categories.Select(x => x.ToDto(currentUserId)).ToArray());
+        var placeCountsByCategoryId = await dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .Where(x => x.AssignedByUserId == currentUserId)
+            .GroupBy(x => x.CategoryId)
+            .Select(x => new
+            {
+                CategoryId = x.Key,
+                PlaceCount = x.Select(assignment => assignment.PlaceId).Distinct().Count()
+            })
+            .ToDictionaryAsync(x => x.CategoryId, x => x.PlaceCount, cancellationToken);
+
+        var orderedCategories = categories
+            .OrderBy(x => x.Id == CategoryAssignmentService.RestaurantsCategoryId ? 0 : 1)
+            .ThenByDescending(x => placeCountsByCategoryId.GetValueOrDefault(x.Id))
+            .ThenBy(x => x.Name)
+            .ToArray();
+
+        return Ok(orderedCategories.Select(x => x.ToDto(currentUserId)).ToArray());
     }
 
     [HttpGet("friends")]
