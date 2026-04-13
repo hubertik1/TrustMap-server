@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TrustMap.Api.Features.Friends;
+using TrustMap.Api.Features.Users;
 using TrustMap.IntegrationTests.Infrastructure;
 
 namespace TrustMap.IntegrationTests;
@@ -45,8 +46,8 @@ public sealed class FriendshipFlowTests
         Assert.NotNull(bobFriends);
         Assert.Single(aliceFriends);
         Assert.Single(bobFriends);
-        Assert.Equal("bob", aliceFriends[0].User.Handle);
-        Assert.Equal("alice", bobFriends[0].User.Handle);
+        Assert.Equal(bob.User.Handle, aliceFriends[0].User.Handle);
+        Assert.Equal(alice.User.Handle, bobFriends[0].User.Handle);
     }
 
     [Fact]
@@ -83,4 +84,124 @@ public sealed class FriendshipFlowTests
         Assert.Empty(bobIncoming);
         Assert.Empty(charlieIncoming);
     }
+
+    [Fact]
+    public async Task Search_UsesHandleOnly_AndRanksExactBeforePrefixAndContains()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var searchClient = new TestApiClient(factory.CreateClient());
+        var prefixClient = new TestApiClient(factory.CreateClient());
+        var containsClient = new TestApiClient(factory.CreateClient());
+
+        var exact = await searchClient.SignInAsync("alice", "Display Name Only");
+        var prefix = await prefixClient.SignInAsync("alicefriend", "Alice Prefix");
+        var contains = await containsClient.SignInAsync("malice", "Alice Display Name");
+
+        searchClient.Authenticate(exact.AccessToken);
+
+        var exactBase = HandleBase(exact.User.Handle);
+        var baseResults = await searchClient.SearchUsersAsync(exactBase, take: 10);
+        var atBaseResults = await searchClient.SearchUsersAsync($"@{exactBase}", take: 10);
+        var fullHandleResults = await searchClient.SearchUsersAsync(SpacedHandleQuery(exact.User.Handle), take: 10);
+        var displayNameResults = await searchClient.SearchUsersAsync("Alice Display Name", take: 10);
+
+        Assert.Contains(baseResults, x => x.User.Id == exact.User.Id);
+        Assert.Contains(baseResults, x => x.User.Id == prefix.User.Id);
+        Assert.Contains(baseResults, x => x.User.Id == contains.User.Id);
+
+        Assert.Equal(
+            baseResults.Select(x => x.User.Id).ToArray(),
+            atBaseResults.Select(x => x.User.Id).ToArray());
+
+        Assert.Equal(exact.User.Id, fullHandleResults[0].User.Id);
+        Assert.True(IndexOf(baseResults, exact.User.Id) < IndexOf(baseResults, contains.User.Id));
+        Assert.True(IndexOf(baseResults, prefix.User.Id) < IndexOf(baseResults, contains.User.Id));
+        Assert.Empty(displayNameResults);
+    }
+
+    [Fact]
+    public async Task Friendship_SurvivesHandleChange_AndPreservesSuffix_WhenAvailable()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        var request = await aliceClient.SendFriendRequestAsync(bob.User.Id);
+        var acceptResponse = await bobClient.HttpClient.PostAsync($"/friend-requests/{request.Id}/accept", content: null);
+        acceptResponse.EnsureSuccessStatusCode();
+
+        var originalSuffix = HandleSuffix(bob.User.Handle);
+        var updatedBob = await bobClient.UpdateMeAsync("bob renamed#9999", "Bobby");
+
+        Assert.Equal($"bob-renamed#{originalSuffix}", updatedBob.Handle);
+
+        var aliceFriends = await aliceClient.HttpClient.GetFromJsonAsync<IReadOnlyList<FriendDto>>("/friends", JsonDefaults.Options);
+        var bobFriends = await bobClient.HttpClient.GetFromJsonAsync<IReadOnlyList<FriendDto>>("/friends", JsonDefaults.Options);
+
+        Assert.NotNull(aliceFriends);
+        Assert.NotNull(bobFriends);
+        Assert.Single(aliceFriends);
+        Assert.Single(bobFriends);
+        Assert.Equal(updatedBob.Handle, aliceFriends[0].User.Handle);
+        Assert.Equal("Bobby", aliceFriends[0].User.DisplayName);
+        Assert.Equal(alice.User.Id, bobFriends[0].User.Id);
+    }
+
+    [Fact]
+    public async Task PendingRequest_SurvivesHandleChange()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        var request = await aliceClient.SendFriendRequestAsync(bob.User.Id);
+        var updatedBob = await bobClient.UpdateMeAsync("bob renamed#0001", "Bobby Pending");
+
+        var outgoing = await aliceClient.HttpClient.GetFromJsonAsync<IReadOnlyList<FriendRequestDto>>("/friend-requests/outgoing", JsonDefaults.Options);
+        var incoming = await bobClient.HttpClient.GetFromJsonAsync<IReadOnlyList<FriendRequestDto>>("/friend-requests/incoming", JsonDefaults.Options);
+
+        Assert.NotNull(outgoing);
+        Assert.NotNull(incoming);
+        Assert.Single(outgoing);
+        Assert.Single(incoming);
+        Assert.Equal(request.Id, outgoing[0].Id);
+        Assert.Equal(request.Id, incoming[0].Id);
+        Assert.Equal(updatedBob.Handle, outgoing[0].Receiver.Handle);
+        Assert.Equal("Bobby Pending", outgoing[0].Receiver.DisplayName);
+        Assert.Equal(updatedBob.Handle, incoming[0].Receiver.Handle);
+    }
+
+    private static string HandleBase(string handle) => handle.Split('#')[0];
+
+    private static string HandleSuffix(string handle) => handle.Split('#')[1];
+
+    private static string SpacedHandleQuery(string handle)
+    {
+        var parts = handle.Split('#');
+        return $"@ {parts[0]} # {parts[1]}";
+    }
+
+    private static int IndexOf(IReadOnlyList<UserSearchResultDto> results, Guid userId) =>
+        results
+            .Select((item, index) => new { item.User.Id, Index = index })
+            .Single(x => x.Id == userId)
+            .Index;
 }

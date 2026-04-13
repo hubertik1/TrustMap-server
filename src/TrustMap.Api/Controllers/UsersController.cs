@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,8 @@ public sealed class UsersController(
     SocialGraphService socialGraphService,
     ProfileQueryService profileQueryService) : ControllerBase
 {
+    private static readonly Regex HandleHashSpacingRegex = new(@"\s*#\s*", RegexOptions.Compiled);
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public Task<UserProfileDto> GetUser(Guid id, CancellationToken cancellationToken)
@@ -39,13 +42,18 @@ public sealed class UsersController(
         }
 
         take = Math.Clamp(take, 1, 50);
-        var normalized = TextNormalizer.NormalizeForLookup(q);
+        var normalized = NormalizeSearchQuery(q);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return Ok(Array.Empty<UserSearchResultDto>());
+        }
+
         var currentUserId = User.GetRequiredUserId();
 
         var users = await dbContext.Users
             .AsNoTracking()
-            .Where(x => x.NormalizedHandle.Contains(normalized) || x.NormalizedDisplayName.Contains(normalized))
-            .OrderBy(x => x.NormalizedHandle.StartsWith(normalized) ? 0 : 1)
+            .Where(x => x.NormalizedHandle.Contains(normalized))
+            .OrderBy(x => x.NormalizedHandle == normalized ? 0 : x.NormalizedHandle.StartsWith(normalized) ? 1 : 2)
             .ThenBy(x => x.Handle)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -60,5 +68,23 @@ public sealed class UsersController(
                 x.ToSummaryDto(),
                 relationshipStatuses.GetValueOrDefault(x.Id, RelationshipStatus.None)))
             .ToArray());
+    }
+
+    private static string NormalizeSearchQuery(string query)
+    {
+        var normalized = TextNormalizer.NormalizeForLookup(query);
+        if (normalized.StartsWith("@", StringComparison.Ordinal))
+        {
+            normalized = normalized[1..];
+        }
+
+        normalized = normalized.Trim();
+        if (normalized.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        normalized = HandleHashSpacingRegex.Replace(normalized, "#");
+        return TextNormalizer.NormalizeHandle(normalized);
     }
 }

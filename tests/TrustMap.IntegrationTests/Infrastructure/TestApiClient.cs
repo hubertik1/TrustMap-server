@@ -4,6 +4,7 @@ using TrustMap.Api.Features.Auth;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
+using TrustMap.Api.Features.Users;
 
 namespace TrustMap.IntegrationTests.Infrastructure;
 
@@ -103,6 +104,35 @@ internal sealed class TestApiClient(HttpClient httpClient)
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<FriendRequestDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<UserProfileDto> UpdateMeAsync(
+        string handle,
+        string displayName,
+        string? bio = null,
+        string? avatarUrl = null)
+    {
+        var response = await HttpClient.PatchAsJsonAsync(
+            "/me",
+            new UpdateMeRequest
+            {
+                Handle = handle,
+                DisplayName = displayName,
+                Bio = bio,
+                AvatarUrl = avatarUrl
+            });
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string query, int take = 20)
+    {
+        var response = await HttpClient.GetAsync(
+            $"/users/search?q={Uri.EscapeDataString(query)}&take={take}");
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<UserSearchResultDto>>(JsonDefaults.Options))!;
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response)

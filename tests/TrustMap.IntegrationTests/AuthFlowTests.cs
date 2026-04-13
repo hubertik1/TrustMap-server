@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using TrustMap.Api.Features.Auth;
 using TrustMap.IntegrationTests.Infrastructure;
 
@@ -18,7 +19,7 @@ public sealed class AuthFlowTests
 
         Assert.False(string.IsNullOrWhiteSpace(session.AccessToken));
         Assert.False(string.IsNullOrWhiteSpace(session.RefreshToken));
-        Assert.Equal("alice", session.User.Handle);
+        Assert.Matches(new Regex("^[a-z0-9._-]+#\\d{4}$"), session.User.Handle);
 
         var refreshResponse = await client.HttpClient.PostAsJsonAsync(
             "/auth/refresh",

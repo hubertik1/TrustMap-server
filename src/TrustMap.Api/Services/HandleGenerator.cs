@@ -9,6 +9,9 @@ namespace TrustMap.Api.Services;
 public sealed class HandleGenerator(TrustMapDbContext dbContext)
 {
     private static readonly Regex HandleSuffixRegex = new(@"^(?<base>[a-z0-9._-]+)#(?<suffix>\d{4})$", RegexOptions.Compiled);
+    private const int MaximumHandleLength = 32;
+    private const int SuffixLength = 5; // "#1234"
+    private const int MaximumBaseLength = MaximumHandleLength - SuffixLength;
 
     public async Task<string> GenerateInitialAppleHandleAsync(
         string? email,
@@ -17,31 +20,16 @@ public sealed class HandleGenerator(TrustMapDbContext dbContext)
         CancellationToken cancellationToken)
     {
         var emailPrefix = email?.Split('@', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
-        var baseHandle = TextNormalizer.SlugifyOrFallback(
-            emailPrefix ?? fallbackHandle ?? displayName,
+        var requestedBase = ExtractEditableBase(fallbackHandle);
+        var baseHandle = NormalizeBaseHandle(
+            emailPrefix ?? requestedBase ?? displayName,
             "user");
 
-        if (baseHandle.Length < 3)
-        {
-            baseHandle = $"{baseHandle}user";
-        }
-
-        baseHandle = baseHandle[..Math.Min(baseHandle.Length, 19)];
-
-        while (true)
-        {
-            var suffix = RandomNumberGenerator.GetInt32(0, 10_000).ToString("D4");
-            var candidate = $"{baseHandle}#{suffix}";
-
-            var exists = await dbContext.Users.AnyAsync(
-                x => x.NormalizedHandle == candidate,
-                cancellationToken);
-
-            if (!exists)
-            {
-                return candidate;
-            }
-        }
+        return await GenerateAvailableHandleAsync(
+            baseHandle,
+            currentUserId: null,
+            preferredSuffix: null,
+            cancellationToken);
     }
 
     public async Task<string> GenerateUpdatedHandleAsync(
@@ -54,45 +42,16 @@ public sealed class HandleGenerator(TrustMapDbContext dbContext)
     {
         var emailPrefix = email?.Split('@', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
         var requestedBase = ExtractEditableBase(preferredBaseHandle);
-        var baseHandle = TextNormalizer.SlugifyOrFallback(
+        var baseHandle = NormalizeBaseHandle(
             requestedBase ?? displayName ?? emailPrefix,
             "user");
-
-        if (baseHandle.Length < 3)
-        {
-            baseHandle = $"{baseHandle}user";
-        }
-
-        baseHandle = baseHandle[..Math.Min(baseHandle.Length, 27)];
         var preservedSuffix = ExtractSuffix(currentHandle);
 
-        if (preservedSuffix is not null)
-        {
-            var preservedCandidate = $"{baseHandle}#{preservedSuffix}";
-            var preservedExists = await dbContext.Users.AnyAsync(
-                x => x.NormalizedHandle == preservedCandidate && x.Id != currentUserId,
-                cancellationToken);
-
-            if (!preservedExists)
-            {
-                return preservedCandidate;
-            }
-        }
-
-        while (true)
-        {
-            var suffix = RandomNumberGenerator.GetInt32(0, 10_000).ToString("D4");
-            var candidate = $"{baseHandle}#{suffix}";
-
-            var exists = await dbContext.Users.AnyAsync(
-                x => x.NormalizedHandle == candidate && x.Id != currentUserId,
-                cancellationToken);
-
-            if (!exists)
-            {
-                return candidate;
-            }
-        }
+        return await GenerateAvailableHandleAsync(
+            baseHandle,
+            currentUserId,
+            preservedSuffix,
+            cancellationToken);
     }
 
     public async Task<string> GenerateUniqueHandleAsync(
@@ -103,32 +62,71 @@ public sealed class HandleGenerator(TrustMapDbContext dbContext)
         CancellationToken cancellationToken)
     {
         var emailPrefix = email?.Split('@', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
-        var baseHandle = TextNormalizer.SlugifyOrFallback(
-            preferredHandle ?? displayName ?? emailPrefix,
+        var requestedBase = ExtractEditableBase(preferredHandle);
+        var baseHandle = NormalizeBaseHandle(
+            requestedBase ?? displayName ?? emailPrefix,
             "user");
+
+        return await GenerateAvailableHandleAsync(
+            baseHandle,
+            currentUserId,
+            preferredSuffix: null,
+            cancellationToken);
+    }
+
+    private async Task<string> GenerateAvailableHandleAsync(
+        string baseHandle,
+        Guid? currentUserId,
+        string? preferredSuffix,
+        CancellationToken cancellationToken)
+    {
+        if (preferredSuffix is not null)
+        {
+            var preservedCandidate = $"{baseHandle}#{preferredSuffix}";
+            var preservedExists = await HandleExistsAsync(preservedCandidate, currentUserId, cancellationToken);
+
+            if (!preservedExists)
+            {
+                return preservedCandidate;
+            }
+        }
+
+        while (true)
+        {
+            var candidate = $"{baseHandle}#{CreateRandomSuffix()}";
+            var exists = await HandleExistsAsync(candidate, currentUserId, cancellationToken);
+
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private async Task<bool> HandleExistsAsync(
+        string candidate,
+        Guid? currentUserId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Users.AnyAsync(
+            x => x.NormalizedHandle == candidate && (!currentUserId.HasValue || x.Id != currentUserId.Value),
+            cancellationToken);
+    }
+
+    private static string NormalizeBaseHandle(string? value, string fallback)
+    {
+        var baseHandle = TextNormalizer.SlugifyOrFallback(value, fallback);
 
         if (baseHandle.Length < 3)
         {
             baseHandle = $"{baseHandle}user";
         }
 
-        baseHandle = baseHandle[..Math.Min(baseHandle.Length, 24)];
-        var candidate = baseHandle;
-        var suffix = 0;
-
-        while (await dbContext.Users.AnyAsync(
-                   x => x.NormalizedHandle == candidate && (!currentUserId.HasValue || x.Id != currentUserId.Value),
-                   cancellationToken))
-        {
-            suffix++;
-            var suffixText = suffix.ToString();
-            var prefixLength = Math.Max(3, 24 - suffixText.Length - 1);
-            var prefix = baseHandle[..Math.Min(baseHandle.Length, prefixLength)];
-            candidate = $"{prefix}-{suffixText}";
-        }
-
-        return candidate;
+        return baseHandle[..Math.Min(baseHandle.Length, MaximumBaseLength)];
     }
+
+    private static string CreateRandomSuffix() =>
+        RandomNumberGenerator.GetInt32(0, 10_000).ToString("D4");
 
     private static string? ExtractSuffix(string handle)
     {
