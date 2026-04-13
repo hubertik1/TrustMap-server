@@ -97,6 +97,19 @@ public sealed class DishReviewsController(
         var place = await dbContext.Places.SingleOrDefaultAsync(x => x.Id == request.PlaceId, cancellationToken)
             ?? throw ApiException.NotFound("Place not found.", "place_not_found");
 
+        var supportsDishReviews = await dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.PlaceId == request.PlaceId && x.CategoryId == CategoryAssignmentService.RestaurantsCategoryId,
+                cancellationToken);
+
+        if (!supportsDishReviews)
+        {
+            throw ApiException.BadRequest(
+                "Dish reviews can be created only for places in the Restaurant category.",
+                "dish_review_place_not_restaurant");
+        }
+
         if (request.PlaceReviewId.HasValue)
         {
             var placeReview = await dbContext.PlaceReviews.SingleOrDefaultAsync(x => x.Id == request.PlaceReviewId.Value, cancellationToken)
