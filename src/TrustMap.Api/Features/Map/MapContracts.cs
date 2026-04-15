@@ -8,6 +8,7 @@ public sealed record MapPlaceDto(
     string? CountryCode,
     double Latitude,
     double Longitude,
+    Guid? CreatedByUserId,
     IReadOnlyList<string> CategoryNames,
     int VisiblePlaceReviewCount,
     int VisibleDishReviewCount,

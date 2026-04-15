@@ -71,7 +71,8 @@ public sealed class MapController(
                 x.Place.City,
                 x.Place.CountryCode,
                 x.Place.Latitude,
-                x.Place.Longitude))
+                x.Place.Longitude,
+                x.Place.CreatedByUserId))
             .ToListAsync(cancellationToken);
 
         var dishReviews = await dishReviewQuery
@@ -85,7 +86,8 @@ public sealed class MapController(
                 x.Place.City,
                 x.Place.CountryCode,
                 x.Place.Latitude,
-                x.Place.Longitude))
+                x.Place.Longitude,
+                x.Place.CreatedByUserId))
             .ToListAsync(cancellationToken);
 
         var categoryAssignmentsQuery = dbContext.PlaceCategoryAssignments
@@ -174,6 +176,7 @@ public sealed class MapController(
                     place.CountryCode,
                     place.Latitude,
                     place.Longitude,
+                    place.CreatedByUserId,
                     categoryNamesByPlace.GetValueOrDefault(x.Key, []),
                     x.Value.PlaceReviewCount,
                     dishCounts.GetValueOrDefault(x.Key, 0),
@@ -199,7 +202,8 @@ file sealed record MapActivitySeed(
     string? City,
     string? CountryCode,
     double Latitude,
-    double Longitude);
+    double Longitude,
+    Guid? CreatedByUserId);
 
 file sealed record MapCategorySeed(
     Guid PlaceId,
