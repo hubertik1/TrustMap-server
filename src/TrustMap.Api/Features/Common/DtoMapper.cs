@@ -65,7 +65,7 @@ public static class DtoMapper
             review.CreatedAt,
             review.UpdatedAt,
             review.AuthorUser.ToSummaryDto(),
-            review.Place.ToSummaryDto(),
+            review.Place.ToSummaryDto(categoryAssignment is null ? [] : [categoryAssignment.Category.Name]),
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 
     public static DishReviewDto ToDto(this DishReview review) =>
@@ -89,6 +89,6 @@ public static class DtoMapper
             review.CreatedAt,
             review.UpdatedAt,
             review.AuthorUser.ToSummaryDto(),
-            review.Place.ToSummaryDto(),
+            review.Place.ToSummaryDto(categoryAssignment is null ? [] : [categoryAssignment.Category.Name]),
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 }
