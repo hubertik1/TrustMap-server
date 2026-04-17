@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,10 @@ namespace TrustMap.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddTrustMapInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddTrustMapInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string contentRootPath)
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
@@ -19,15 +23,13 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Database")
             ?? throw new InvalidOperationException("Connection string 'Database' is missing.");
 
-        var databaseOptions = configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>() ?? new DatabaseOptions();
-        var serverVersion = new MySqlServerVersion(Version.Parse(databaseOptions.ServerVersion));
+        var sqliteConnectionString = BuildSqliteConnectionString(connectionString, contentRootPath);
 
         services.AddDbContext<TrustMapDbContext>(options =>
         {
-            options.UseMySql(
-                connectionString,
-                serverVersion,
-                mySqlOptions => mySqlOptions.MigrationsAssembly(typeof(TrustMapDbContext).Assembly.FullName));
+            options.UseSqlite(
+                sqliteConnectionString,
+                sqliteOptions => sqliteOptions.MigrationsAssembly(typeof(TrustMapDbContext).Assembly.FullName));
         });
 
         services.AddScoped<SessionTokenService>();
@@ -35,5 +37,36 @@ public static class DependencyInjection
         services.AddSingleton<IPhotoStorage, LocalPhotoStorage>();
 
         return services;
+    }
+
+    private static string BuildSqliteConnectionString(string connectionString, string contentRootPath)
+    {
+        var builder = new SqliteConnectionStringBuilder(connectionString);
+
+        if (string.IsNullOrWhiteSpace(builder.DataSource))
+        {
+            throw new InvalidOperationException("SQLite connection string must contain a Data Source.");
+        }
+
+        builder.ForeignKeys ??= true;
+
+        if (!string.Equals(builder.DataSource, ":memory:", StringComparison.Ordinal)
+            && !Path.IsPathRooted(builder.DataSource)
+            && !builder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.DataSource = Path.GetFullPath(builder.DataSource, contentRootPath);
+        }
+
+        if (!string.Equals(builder.DataSource, ":memory:", StringComparison.Ordinal)
+            && !builder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            var directory = Path.GetDirectoryName(builder.DataSource);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
+        return builder.ToString();
     }
 }

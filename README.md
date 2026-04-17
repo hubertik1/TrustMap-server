@@ -1,13 +1,13 @@
 # TrustMap-server
 
-Backend-first implementation for TrustMap. This repo replaces CloudKit/SwiftData as the source of truth with a REST API built on ASP.NET Core, MySQL and EF Core.
+Backend-first implementation for TrustMap. This repo replaces CloudKit/SwiftData as the source of truth with a REST API built on ASP.NET Core, SQLite and EF Core.
 
 ## Architecture
 
 - Runtime: ASP.NET Core Web API on .NET 10
-- Persistence: MySQL 8.4 + EF Core 9 + Pomelo
+- Persistence: SQLite + EF Core 9
 - Auth: Sign in with Apple as upstream identity provider, backend-issued JWT access tokens and rotating refresh tokens
-- Storage: metadata in MySQL, photo blobs behind a storage abstraction with a local filesystem implementation for development
+- Storage: metadata in SQLite, photo blobs behind a storage abstraction with a local filesystem implementation for development
 - Visibility: enforced server-side for `private`, `friends`, `public`
 - Aggregates: dedicated `/feed` and `/map/places` endpoints so the iOS client does not have to reconstruct social projections locally
 
@@ -45,7 +45,7 @@ Important simplifications:
 
 ## Local development
 
-### 1. Start MySQL and API with Docker Compose
+### 1. Start API with Docker Compose
 
 ```bash
 docker compose up --build
@@ -54,11 +54,9 @@ docker compose up --build
 Services:
 
 - API: [http://localhost:8080](http://localhost:8080)
-- MySQL: `localhost:3306`
+- SQLite database file inside the container: `/app/App_Data/trustmap.db`
 
 ### 2. Run API directly from the host
-
-Start MySQL first, then:
 
 ```bash
 dotnet ef database update \
@@ -68,11 +66,7 @@ dotnet ef database update \
 dotnet run --project src/TrustMap.Api/TrustMap.Api.csproj --no-launch-profile
 ```
 
-If you start the API without MySQL:
-
-- `/health/live` should still return `200 OK`
-- `/health/ready` will return `503 Unhealthy`
-- any DB-backed endpoint will fail until the database is available
+This creates the local SQLite file at `src/TrustMap.Api/App_Data/trustmap.db` if it does not exist yet.
 
 ## Configuration
 
@@ -86,7 +80,6 @@ Environment variables override appsettings using standard ASP.NET naming.
 ### Required settings
 
 - `ConnectionStrings__Database`
-- `Database__ServerVersion`
 - `Jwt__Issuer`
 - `Jwt__Audience`
 - `Jwt__SigningKey`
@@ -98,8 +91,7 @@ Environment variables override appsettings using standard ASP.NET naming.
 ### Example values
 
 ```text
-ConnectionStrings__Database=Server=localhost;Port=3306;Database=trustmap;User=trustmap;Password=trustmap;
-Database__ServerVersion=8.4.0
+ConnectionStrings__Database=Data Source=App_Data/trustmap.db;Foreign Keys=True;
 Jwt__Issuer=TrustMap.Api
 Jwt__Audience=TrustMap.iOS
 Jwt__SigningKey=trustmap-local-development-signing-key-change-before-production

@@ -15,7 +15,7 @@ namespace TrustMap.IntegrationTests.Infrastructure;
 
 internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private readonly SqliteConnection _connection = new("Data Source=:memory:;Foreign Keys=True");
     private readonly string _photoRootPath = Path.Combine(Path.GetTempPath(), "trustmap-tests", Guid.NewGuid().ToString("N"));
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
@@ -48,7 +48,9 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
             services.AddSingleton(_connection);
             services.AddDbContext<TrustMapDbContext>((serviceProvider, options) =>
             {
-                options.UseSqlite(serviceProvider.GetRequiredService<SqliteConnection>());
+                options.UseSqlite(
+                    serviceProvider.GetRequiredService<SqliteConnection>(),
+                    sqliteOptions => sqliteOptions.MigrationsAssembly(typeof(TrustMapDbContext).Assembly.FullName));
             });
 
             services.AddSingleton<IAppleIdentityTokenVerifier, FakeAppleIdentityTokenVerifier>();
@@ -89,6 +91,6 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
         using var scope = Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
         await dbContext.Database.EnsureDeletedAsync();
-        await dbContext.Database.EnsureCreatedAsync();
+        await dbContext.Database.MigrateAsync();
     }
 }

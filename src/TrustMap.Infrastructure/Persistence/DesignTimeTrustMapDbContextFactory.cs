@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -9,14 +10,44 @@ public sealed class DesignTimeTrustMapDbContextFactory : IDesignTimeDbContextFac
     {
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__Database")
-            ?? "Server=localhost;Port=3306;Database=trustmap;User=trustmap;Password=trustmap;";
+            ?? "Data Source=App_Data/trustmap.db;Foreign Keys=True;";
+
+        var sqliteBuilder = new SqliteConnectionStringBuilder(connectionString)
+        {
+            ForeignKeys = true
+        };
+
+        if (!string.Equals(sqliteBuilder.DataSource, ":memory:", StringComparison.Ordinal)
+            && !Path.IsPathRooted(sqliteBuilder.DataSource)
+            && !sqliteBuilder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            sqliteBuilder.DataSource = Path.GetFullPath(sqliteBuilder.DataSource, ResolveContentRootPath());
+        }
+
+        if (!string.Equals(sqliteBuilder.DataSource, ":memory:", StringComparison.Ordinal)
+            && !sqliteBuilder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            var directory = Path.GetDirectoryName(sqliteBuilder.DataSource);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
 
         var optionsBuilder = new DbContextOptionsBuilder<TrustMapDbContext>();
-        optionsBuilder.UseMySql(
-            connectionString,
-            new MySqlServerVersion(new Version(8, 4, 0)),
-            mySqlOptions => mySqlOptions.MigrationsAssembly(typeof(TrustMapDbContext).Assembly.FullName));
+        optionsBuilder.UseSqlite(
+            sqliteBuilder.ToString(),
+            sqliteOptions => sqliteOptions.MigrationsAssembly(typeof(TrustMapDbContext).Assembly.FullName));
 
         return new TrustMapDbContext(optionsBuilder.Options);
+    }
+
+    private static string ResolveContentRootPath()
+    {
+        var currentDirectory = Directory.GetCurrentDirectory();
+        var startupProjectPath = Path.Combine(currentDirectory, "src", "TrustMap.Api");
+        return Directory.Exists(startupProjectPath)
+            ? Path.GetFullPath(startupProjectPath)
+            : currentDirectory;
     }
 }

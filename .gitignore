@@ -9,6 +9,7 @@
 # Local uploaded photos
 /storage/
 /src/TrustMap.Api/storage/
+/src/TrustMap.Api/App_Data/
 
 # User-specific files
 *.rsuser

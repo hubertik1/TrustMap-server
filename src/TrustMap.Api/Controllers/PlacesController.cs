@@ -52,7 +52,7 @@ public sealed class PlacesController(
 
         var places = await dbContext.Places
             .AsNoTracking()
-            .Where(x => x.NormalizedName.Contains(normalized) || x.Address.Contains(q))
+            .Where(x => x.NormalizedName.Contains(normalized) || x.NormalizedAddress.Contains(normalized))
             .OrderBy(x => x.NormalizedName.StartsWith(normalized) ? 0 : 1)
             .ThenBy(x => x.Name)
             .Take(take)

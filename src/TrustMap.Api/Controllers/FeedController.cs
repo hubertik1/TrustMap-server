@@ -36,7 +36,7 @@ public sealed class FeedController(
             .VisibleInSocialScope(currentUserId, friendIds)
             .Where(x => x.UpdatedAt < cursor)
             .OrderByDescending(x => x.UpdatedAt)
-            .Take(take)
+            .Take(take + 1)
             .ToListAsync(cancellationToken);
 
         var dishReviews = await dbContext.DishReviews
@@ -47,7 +47,7 @@ public sealed class FeedController(
             .VisibleInSocialScope(currentUserId, friendIds)
             .Where(x => x.UpdatedAt < cursor)
             .OrderByDescending(x => x.UpdatedAt)
-            .Take(take)
+            .Take(take + 1)
             .ToListAsync(cancellationToken);
 
         var items = placeReviews
@@ -81,7 +81,7 @@ public sealed class FeedController(
             .Take(take + 1)
             .ToList();
 
-        var nextCursorUtc = items.Count > take ? items[^1].UpdatedAtUtc : (DateTime?)null;
+        var nextCursorUtc = items.Count > take ? items.Take(take).Last().UpdatedAtUtc : (DateTime?)null;
         if (items.Count > take)
         {
             items = items.Take(take).ToList();

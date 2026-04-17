@@ -15,6 +15,7 @@ internal sealed class PlaceConfiguration : IEntityTypeConfiguration<Place>
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Address).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.NormalizedAddress).HasMaxLength(300).IsRequired();
         builder.Property(x => x.City).HasMaxLength(120);
         builder.Property(x => x.CountryCode).HasMaxLength(2);
         builder.Property(x => x.Provider).HasMaxLength(40);

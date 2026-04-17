@@ -25,6 +25,7 @@ public sealed class ReviewCrudTests
             $"/place-reviews/{reviewId}",
             new UpdatePlaceReviewRequest
             {
+                CategoryId = TestApiClient.DefaultCategoryId,
                 Visibility = VisibilityLevel.Public,
                 Rating = 5,
                 Title = "Updated",
@@ -61,6 +62,7 @@ public sealed class ReviewCrudTests
             $"/dish-reviews/{dishReviewId}",
             new UpdateDishReviewRequest
             {
+                CategoryId = TestApiClient.DefaultCategoryId,
                 Visibility = VisibilityLevel.Public,
                 DishName = "Pierogi Ruskie",
                 Rating = 4,

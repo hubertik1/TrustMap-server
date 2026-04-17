@@ -51,7 +51,7 @@ builder.Services.PostConfigure<PhotoStorageOptions>(options =>
     options.RootPath = Path.GetFullPath(options.RootPath, builder.Environment.ContentRootPath);
 });
 
-builder.Services.AddTrustMapInfrastructure(builder.Configuration);
+builder.Services.AddTrustMapInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddScoped<CategoryAssignmentService>();
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();

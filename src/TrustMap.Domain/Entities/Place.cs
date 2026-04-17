@@ -37,6 +37,8 @@ public sealed class Place
 
     public string Address { get; private set; } = null!;
 
+    public string NormalizedAddress { get; private set; } = null!;
+
     public string? City { get; private set; }
 
     public string? CountryCode { get; private set; }
@@ -90,6 +92,7 @@ public sealed class Place
         Name = name.Trim();
         NormalizedName = TextNormalizer.NormalizeForLookup(Name);
         Address = address.Trim();
+        NormalizedAddress = TextNormalizer.NormalizeForLookup(Address);
         City = string.IsNullOrWhiteSpace(city) ? null : city.Trim();
         CountryCode = string.IsNullOrWhiteSpace(countryCode) ? null : countryCode.Trim().ToUpperInvariant();
         Latitude = latitude;

@@ -4,12 +4,15 @@ using TrustMap.Api.Features.Auth;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
+using TrustMap.Api.Services;
 using TrustMap.Api.Features.Users;
 
 namespace TrustMap.IntegrationTests.Infrastructure;
 
 internal sealed class TestApiClient(HttpClient httpClient)
 {
+    public static readonly Guid DefaultCategoryId = CategoryAssignmentService.RestaurantsCategoryId;
+
     public HttpClient HttpClient { get; } = httpClient;
 
     public async Task<AuthSessionDto> SignInAsync(string subject, string displayName)
@@ -51,13 +54,19 @@ internal sealed class TestApiClient(HttpClient httpClient)
         return place.Id;
     }
 
-    public async Task<Guid> CreatePlaceReviewAsync(Guid placeId, Domain.Enums.VisibilityLevel visibility, int rating, string body)
+    public async Task<Guid> CreatePlaceReviewAsync(
+        Guid placeId,
+        Domain.Enums.VisibilityLevel visibility,
+        int rating,
+        string body,
+        Guid? categoryId = null)
     {
         var response = await HttpClient.PostAsJsonAsync(
             "/place-reviews",
             new CreatePlaceReviewRequest
             {
                 PlaceId = placeId,
+                CategoryId = categoryId ?? DefaultCategoryId,
                 Visibility = visibility,
                 Rating = rating,
                 Body = body,
@@ -74,13 +83,15 @@ internal sealed class TestApiClient(HttpClient httpClient)
         Guid? placeReviewId,
         Domain.Enums.VisibilityLevel visibility,
         string dishName,
-        int rating)
+        int rating,
+        Guid? categoryId = null)
     {
         var response = await HttpClient.PostAsJsonAsync(
             "/dish-reviews",
             new CreateDishReviewRequest
             {
                 PlaceId = placeId,
+                CategoryId = categoryId ?? DefaultCategoryId,
                 PlaceReviewId = placeReviewId,
                 Visibility = visibility,
                 DishName = dishName,

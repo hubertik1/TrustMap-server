@@ -45,14 +45,15 @@ public sealed class LocalPhotoStorage(IOptions<PhotoStorageOptions> options) : I
 
         await using var targetStream = File.Create(absolutePath);
         await stream.CopyToAsync(targetStream, cancellationToken);
+        await targetStream.FlushAsync(cancellationToken);
+        var sizeBytes = targetStream.Length;
 
-        var fileInfo = new FileInfo(absolutePath);
         return new StoredPhoto(
             StorageProvider: _options.Provider,
             StorageKey: storageKey,
             PublicUrl: $"{_options.RequestPath.TrimEnd('/')}/{storageKey}",
             ContentType: contentType,
-            SizeBytes: fileInfo.Length,
+            SizeBytes: sizeBytes,
             Width: null,
             Height: null);
     }
