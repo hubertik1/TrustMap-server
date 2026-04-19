@@ -53,8 +53,13 @@ docker compose up --build
 
 Services:
 
-- API: [http://localhost:8080](http://localhost:8080)
+- API on your Mac: [http://localhost:5104](http://localhost:5104)
 - SQLite database file inside the container: `/app/App_Data/trustmap.db`
+
+From another device on the same LAN, use:
+
+- `http://<your-mac-lan-host>:5104`
+- `http://<your-mac-lan-ip>:5104`
 
 ### 2. Run API directly from the host
 
@@ -63,10 +68,12 @@ dotnet ef database update \
   --project src/TrustMap.Infrastructure/TrustMap.Infrastructure.csproj \
   --startup-project src/TrustMap.Api/TrustMap.Api.csproj
 
+ASPNETCORE_ENVIRONMENT=Development \
 dotnet run --project src/TrustMap.Api/TrustMap.Api.csproj --no-launch-profile
 ```
 
 This creates the local SQLite file at `src/TrustMap.Api/App_Data/trustmap.db` if it does not exist yet.
+In Development, the API binds to `http://0.0.0.0:5104`, so real iPhones on the same Wi-Fi network can reach it.
 
 ## Configuration
 
@@ -76,6 +83,8 @@ Main settings live in:
 - `src/TrustMap.Api/appsettings.Development.json`
 
 Environment variables override appsettings using standard ASP.NET naming.
+
+Production remains driven by `appsettings.json` plus environment variables from the hosting platform. The LAN-friendly listener lives only in `appsettings.Development.json`.
 
 ### Required settings
 
@@ -100,6 +109,24 @@ PhotoStorage__Provider=local
 PhotoStorage__RootPath=storage/photos
 PhotoStorage__RequestPath=/uploads
 ```
+
+## iOS Local scheme
+
+The iOS app resolves relative media URLs against its configured `API_BASE_URL`. For local testing:
+
+1. Start the backend with one of the development flows above.
+2. Choose a LAN-reachable host for your Mac:
+   - `<your-mac-name>.local`
+   - or your LAN IP such as `192.168.1.42`
+3. In `TrustMap-app/Config/Local.override.xcconfig`, set:
+
+```xcconfig
+TRUSTMAP_LAN_HOST = <your-mac-name>.local
+```
+
+4. Run the `Local` scheme in Xcode.
+
+No source-code URL edits are required. Switching to production is done by running the `Prod` scheme.
 
 ## Migrations
 
@@ -158,4 +185,4 @@ Covered flows:
 
 See:
 
-- [docs/ios-integration.md](/Users/hubert/Projects/TrustMap/Trustmap-server/docs/ios-integration.md)
+- [docs/ios-integration.md](/Users/hubert/Projects/TrustMap/TrustMap-server/docs/ios-integration.md)

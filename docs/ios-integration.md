@@ -36,6 +36,8 @@ This document defines the backend contract that `Trustmap-app` should integrate 
 
 ## Endpoint summary
 
+The API returns relative media paths such as `/uploads/...`. The iOS app resolves them against its configured `API_BASE_URL`, which now comes from the active `Local` or `Prod` scheme instead of hardcoded source values.
+
 ### Auth and profile
 
 - `POST /auth/apple`
