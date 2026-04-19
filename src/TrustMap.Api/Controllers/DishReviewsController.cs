@@ -63,7 +63,7 @@ public sealed class DishReviewsController(
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return Ok(reviews.Select(x => x.ToDto()).ToArray());
+        return Ok(reviews.Select(x => x.ToDto(currentUserId)).ToArray());
     }
 
     [HttpGet("{id:guid}")]
@@ -84,7 +84,7 @@ public sealed class DishReviewsController(
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("Dish review not found.", "dish_review_not_found");
 
-        return Ok(review.ToDto());
+        return Ok(review.ToDto(currentUserId));
     }
 
     [HttpPost]
@@ -146,7 +146,7 @@ public sealed class DishReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == review.Id, cancellationToken);
 
-        return Created($"/dish-reviews/{review.Id}", created.ToDto());
+        return Created($"/dish-reviews/{review.Id}", created.ToDto(currentUserId));
     }
 
     [HttpPatch("{id:guid}")]
@@ -182,7 +182,7 @@ public sealed class DishReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == id, cancellationToken);
 
-        return Ok(updated.ToDto());
+        return Ok(updated.ToDto(currentUserId));
     }
 
     [HttpDelete("{id:guid}")]

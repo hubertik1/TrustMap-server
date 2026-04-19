@@ -58,7 +58,7 @@ public sealed class PlaceReviewsController(
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return Ok(reviews.Select(x => x.ToDto()).ToArray());
+        return Ok(reviews.Select(x => x.ToDto(currentUserId)).ToArray());
     }
 
     [HttpGet("{id:guid}")]
@@ -79,7 +79,7 @@ public sealed class PlaceReviewsController(
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("Place review not found.", "place_review_not_found");
 
-        return Ok(review.ToDto());
+        return Ok(review.ToDto(currentUserId));
     }
 
     [HttpPost]
@@ -123,7 +123,7 @@ public sealed class PlaceReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == review.Id, cancellationToken);
 
-        return Created($"/place-reviews/{review.Id}", created.ToDto());
+        return Created($"/place-reviews/{review.Id}", created.ToDto(currentUserId));
     }
 
     [HttpPatch("{id:guid}")]
@@ -159,7 +159,7 @@ public sealed class PlaceReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == id, cancellationToken);
 
-        return Ok(updated.ToDto());
+        return Ok(updated.ToDto(currentUserId));
     }
 
     [HttpDelete("{id:guid}")]

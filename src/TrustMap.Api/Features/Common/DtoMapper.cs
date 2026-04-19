@@ -30,16 +30,20 @@ public static class DtoMapper
             visibleDishReviewCount,
             isMe);
 
-    public static PlaceSummaryDto ToSummaryDto(this Place place) =>
-        place.ToSummaryDto([]);
+    public static PlaceSummaryDto ToSummaryDto(this Place place, Guid currentUserId) =>
+        place.ToSummaryDto([], currentUserId);
 
-    public static PlaceSummaryDto ToSummaryDto(this Place place, IReadOnlyList<string> categoryNames) =>
+    public static PlaceSummaryDto ToSummaryDto(
+        this Place place,
+        IReadOnlyList<string> categoryNames,
+        Guid currentUserId) =>
         new(
             place.Id,
             place.Name,
             place.DisplayName,
             place.CustomDisplayName,
             place.SourceType,
+            place.CanEditCustomDisplayName(currentUserId),
             place.Address,
             place.City,
             place.CountryCode,
@@ -60,12 +64,16 @@ public static class DtoMapper
             photo.ThumbnailUrl,
             photo.CreatedAt);
 
-    public static PlaceReviewDto ToDto(this PlaceReview review) =>
+    public static PlaceReviewDto ToDto(this PlaceReview review, Guid currentUserId) =>
         review.ToDto(
+            currentUserId,
             review.Place.CategoryAssignments
                 .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
 
-    public static PlaceReviewDto ToDto(this PlaceReview review, PlaceCategoryAssignment? categoryAssignment) =>
+    public static PlaceReviewDto ToDto(
+        this PlaceReview review,
+        Guid currentUserId,
+        PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
             review.PlaceId,
@@ -78,15 +86,21 @@ public static class DtoMapper
             review.CreatedAt,
             review.UpdatedAt,
             review.AuthorUser.ToSummaryDto(),
-            review.Place.ToSummaryDto(categoryAssignment is null ? [] : [categoryAssignment.Category.Name]),
+            review.Place.ToSummaryDto(
+                categoryAssignment is null ? [] : [categoryAssignment.Category.Name],
+                currentUserId),
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 
-    public static DishReviewDto ToDto(this DishReview review) =>
+    public static DishReviewDto ToDto(this DishReview review, Guid currentUserId) =>
         review.ToDto(
+            currentUserId,
             review.Place.CategoryAssignments
                 .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
 
-    public static DishReviewDto ToDto(this DishReview review, PlaceCategoryAssignment? categoryAssignment) =>
+    public static DishReviewDto ToDto(
+        this DishReview review,
+        Guid currentUserId,
+        PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
             review.PlaceId,
@@ -102,6 +116,8 @@ public static class DtoMapper
             review.CreatedAt,
             review.UpdatedAt,
             review.AuthorUser.ToSummaryDto(),
-            review.Place.ToSummaryDto(categoryAssignment is null ? [] : [categoryAssignment.Category.Name]),
+            review.Place.ToSummaryDto(
+                categoryAssignment is null ? [] : [categoryAssignment.Category.Name],
+                currentUserId),
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 }

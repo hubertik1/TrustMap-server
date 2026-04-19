@@ -25,6 +25,7 @@ public sealed class PlacesController(
         [FromQuery] int take = 50,
         CancellationToken cancellationToken = default)
     {
+        var currentUserId = User.GetRequiredUserId();
         take = Math.Clamp(take, 1, 100);
 
         var places = await dbContext.Places
@@ -35,7 +36,7 @@ public sealed class PlacesController(
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return Ok(places.Select(x => x.ToSummaryDto()).ToArray());
+        return Ok(places.Select(x => x.ToSummaryDto(currentUserId)).ToArray());
     }
 
     [HttpGet("search")]
@@ -51,6 +52,7 @@ public sealed class PlacesController(
         }
 
         take = Math.Clamp(take, 1, 50);
+        var currentUserId = User.GetRequiredUserId();
         var normalized = TextNormalizer.NormalizeForLookup(q);
 
         var places = await dbContext.Places
@@ -72,7 +74,7 @@ public sealed class PlacesController(
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return Ok(places.Select(x => x.ToSummaryDto()).ToArray());
+        return Ok(places.Select(x => x.ToSummaryDto(currentUserId)).ToArray());
     }
 
     [HttpGet("{id:guid}")]
@@ -149,6 +151,7 @@ public sealed class PlacesController(
             place.DisplayName,
             place.CustomDisplayName,
             place.SourceType,
+            place.CanEditCustomDisplayName(currentUserId),
             place.Address,
             place.City,
             place.CountryCode,
@@ -172,7 +175,7 @@ public sealed class PlacesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var place = await placeCatalogService.CreateOrGetAsync(currentUserId, request, cancellationToken);
-        var dto = place.ToSummaryDto();
+        var dto = place.ToSummaryDto(currentUserId);
         return Created($"/places/{place.Id}", dto);
     }
 
@@ -185,6 +188,6 @@ public sealed class PlacesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var place = await placeCatalogService.UpdateCustomDisplayNameAsync(currentUserId, id, request, cancellationToken);
-        return Ok(place.ToSummaryDto());
+        return Ok(place.ToSummaryDto(currentUserId));
     }
 }
