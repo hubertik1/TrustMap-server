@@ -11,6 +11,10 @@ public sealed record PhotoDto(
     string Url,
     string ContentType,
     long SizeBytes,
+    int? Width,
+    int? Height,
+    string? MediumUrl,
+    string? ThumbnailUrl,
     DateTime CreatedAtUtc);
 
 public sealed record PlaceReviewDto(

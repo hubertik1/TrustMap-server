@@ -15,6 +15,10 @@ internal sealed class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.Property(x => x.StorageProvider).HasMaxLength(40).IsRequired();
         builder.Property(x => x.StorageKey).HasMaxLength(500).IsRequired();
         builder.Property(x => x.PublicUrl).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.MediumStorageKey).HasMaxLength(500);
+        builder.Property(x => x.MediumUrl).HasMaxLength(500);
+        builder.Property(x => x.ThumbnailStorageKey).HasMaxLength(500);
+        builder.Property(x => x.ThumbnailUrl).HasMaxLength(500);
         builder.Property(x => x.FileName).HasMaxLength(260).IsRequired();
         builder.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();

@@ -80,6 +80,10 @@ public sealed class PhotosController(
             storedPhoto.StorageProvider,
             storedPhoto.StorageKey,
             storedPhoto.PublicUrl,
+            storedPhoto.Medium?.StorageKey,
+            storedPhoto.Medium?.PublicUrl,
+            storedPhoto.Thumbnail?.StorageKey,
+            storedPhoto.Thumbnail?.PublicUrl,
             request.File.FileName,
             storedPhoto.ContentType,
             storedPhoto.SizeBytes,
@@ -119,11 +123,14 @@ public sealed class PhotosController(
 
         try
         {
-            await photoStorage.DeleteAsync(photo.StorageKey, cancellationToken);
+            foreach (var storageKey in photo.EnumerateStorageKeys())
+            {
+                await photoStorage.DeleteAsync(storageKey, cancellationToken);
+            }
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Failed to delete photo blob {StorageKey} after metadata deletion.", photo.StorageKey);
+            logger.LogWarning(exception, "Failed to delete one or more photo blobs for photo {PhotoId} after metadata deletion.", photo.Id);
         }
 
         return NoContent();

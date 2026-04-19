@@ -200,7 +200,10 @@ public sealed class DishReviewsController(
             throw ApiException.Forbidden("You can delete only your own dish reviews.", "dish_review_forbidden");
         }
 
-        var storageKeys = review.Photos.Select(x => x.StorageKey).ToArray();
+        var storageKeys = review.Photos
+            .SelectMany(x => x.EnumerateStorageKeys())
+            .Distinct()
+            .ToArray();
         var placeId = review.PlaceId;
         dbContext.DishReviews.Remove(review);
         await dbContext.SaveChangesAsync(cancellationToken);

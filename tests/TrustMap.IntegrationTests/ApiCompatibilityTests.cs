@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using TrustMap.Api.Features.Feed;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
@@ -130,7 +133,7 @@ public sealed class ApiCompatibilityTests
         var reviewId = await client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Public, 5, "Photo review");
 
         using var multipart = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xD9]);
+        var fileContent = new ByteArrayContent(CreateTestJpegBytes(width: 1_600, height: 1_200));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         multipart.Add(fileContent, "file", "photo.jpg");
         multipart.Add(new StringContent(reviewId.ToString()), "placeReviewId");
@@ -141,7 +144,11 @@ public sealed class ApiCompatibilityTests
         var uploaded = await uploadResponse.Content.ReadFromJsonAsync<PhotoDto>(JsonDefaults.Options);
         Assert.NotNull(uploaded);
         Assert.Equal("image/jpeg", uploaded!.ContentType);
-        Assert.Equal(4, uploaded.SizeBytes);
+        Assert.True(uploaded.SizeBytes > 0);
+        Assert.Equal(1_600, uploaded.Width);
+        Assert.Equal(1_200, uploaded.Height);
+        Assert.NotNull(uploaded.MediumUrl);
+        Assert.NotNull(uploaded.ThumbnailUrl);
         Assert.NotEqual(default, uploaded.CreatedAtUtc);
 
         var deleteReviewResponse = await client.HttpClient.DeleteAsync($"/place-reviews/{reviewId}");
@@ -182,5 +189,13 @@ public sealed class ApiCompatibilityTests
             });
 
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
+    }
+
+    private static byte[] CreateTestJpegBytes(int width, int height)
+    {
+        using var image = new Image<Rgba32>(width, height, new Rgba32(210, 116, 74));
+        using var buffer = new MemoryStream();
+        image.SaveAsJpeg(buffer, new JpegEncoder { Quality = 90 });
+        return buffer.ToArray();
     }
 }

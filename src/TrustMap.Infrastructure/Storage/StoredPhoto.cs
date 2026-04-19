@@ -7,4 +7,6 @@ public sealed record StoredPhoto(
     string ContentType,
     long SizeBytes,
     int? Width,
-    int? Height);
+    int? Height,
+    StoredPhotoVariant? Medium,
+    StoredPhotoVariant? Thumbnail);

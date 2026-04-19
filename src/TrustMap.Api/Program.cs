@@ -112,7 +112,11 @@ if (string.Equals(photoStorageOptions.Provider, "local", StringComparison.Ordina
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = new PhysicalFileProvider(rootPath),
-        RequestPath = photoStorageOptions.RequestPath
+        RequestPath = photoStorageOptions.RequestPath,
+        OnPrepareResponse = context =>
+        {
+            context.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+        }
     });
 }
 

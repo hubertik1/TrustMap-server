@@ -177,7 +177,10 @@ public sealed class PlaceReviewsController(
             throw ApiException.Forbidden("You can delete only your own place reviews.", "place_review_forbidden");
         }
 
-        var storageKeys = review.Photos.Select(x => x.StorageKey).ToArray();
+        var storageKeys = review.Photos
+            .SelectMany(x => x.EnumerateStorageKeys())
+            .Distinct()
+            .ToArray();
         var placeId = review.PlaceId;
         dbContext.PlaceReviews.Remove(review);
         await dbContext.SaveChangesAsync(cancellationToken);

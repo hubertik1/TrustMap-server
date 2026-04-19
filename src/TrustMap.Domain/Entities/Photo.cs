@@ -15,6 +15,10 @@ public sealed class Photo
         string storageProvider,
         string storageKey,
         string publicUrl,
+        string? mediumStorageKey,
+        string? mediumUrl,
+        string? thumbnailStorageKey,
+        string? thumbnailUrl,
         string fileName,
         string contentType,
         long sizeBytes,
@@ -34,6 +38,10 @@ public sealed class Photo
         StorageProvider = storageProvider.Trim();
         StorageKey = storageKey.Trim();
         PublicUrl = publicUrl.Trim();
+        MediumStorageKey = mediumStorageKey?.Trim();
+        MediumUrl = mediumUrl?.Trim();
+        ThumbnailStorageKey = thumbnailStorageKey?.Trim();
+        ThumbnailUrl = thumbnailUrl?.Trim();
         FileName = fileName.Trim();
         ContentType = contentType.Trim();
         SizeBytes = sizeBytes;
@@ -58,6 +66,14 @@ public sealed class Photo
 
     public string PublicUrl { get; private set; } = null!;
 
+    public string? MediumStorageKey { get; private set; }
+
+    public string? MediumUrl { get; private set; }
+
+    public string? ThumbnailStorageKey { get; private set; }
+
+    public string? ThumbnailUrl { get; private set; }
+
     public string FileName { get; private set; } = null!;
 
     public string ContentType { get; private set; } = null!;
@@ -77,4 +93,19 @@ public sealed class Photo
     public PlaceReview? PlaceReview { get; private set; }
 
     public DishReview? DishReview { get; private set; }
+
+    public IEnumerable<string> EnumerateStorageKeys()
+    {
+        yield return StorageKey;
+
+        if (!string.IsNullOrWhiteSpace(MediumStorageKey))
+        {
+            yield return MediumStorageKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ThumbnailStorageKey))
+        {
+            yield return ThumbnailStorageKey;
+        }
+    }
 }

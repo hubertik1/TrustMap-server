@@ -45,7 +45,16 @@ public static class DtoMapper
             categoryNames);
 
     public static PhotoDto ToDto(this Photo photo) =>
-        new(photo.Id, photo.PublicUrl, photo.ContentType, photo.SizeBytes, photo.CreatedAt);
+        new(
+            photo.Id,
+            photo.PublicUrl,
+            photo.ContentType,
+            photo.SizeBytes,
+            photo.Width,
+            photo.Height,
+            photo.MediumUrl,
+            photo.ThumbnailUrl,
+            photo.CreatedAt);
 
     public static PlaceReviewDto ToDto(this PlaceReview review) =>
         review.ToDto(
