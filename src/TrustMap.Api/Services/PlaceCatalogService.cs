@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using TrustMap.Api.Common;
 using TrustMap.Api.Features.Places;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Api.Services;
@@ -9,7 +11,20 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
 {
     public async Task<Place> CreateOrGetAsync(Guid currentUserId, CreatePlaceRequest request, CancellationToken cancellationToken)
     {
-        var existing = await FindByIdentityAsync(request, cancellationToken);
+        var sourceType = Place.ResolveSourceType(request.Provider, request.ProviderPlaceId);
+        var normalizedProvider = sourceType == PlaceSourceType.ProviderVenue
+            ? request.Provider!.Trim().ToLowerInvariant()
+            : null;
+        var normalizedProviderPlaceId = sourceType == PlaceSourceType.ProviderVenue
+            ? request.ProviderPlaceId!.Trim()
+            : null;
+
+        var existing = await FindByIdentityAsync(
+            request,
+            sourceType,
+            normalizedProvider,
+            normalizedProviderPlaceId,
+            cancellationToken);
         if (existing is not null)
         {
             return existing;
@@ -23,8 +38,8 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
             request.CountryCode,
             request.Latitude,
             request.Longitude,
-            request.Provider,
-            request.ProviderPlaceId,
+            normalizedProvider,
+            normalizedProviderPlaceId,
             currentUserId);
 
         dbContext.Places.Add(place);
@@ -36,7 +51,12 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
         }
         catch (DbUpdateException)
         {
-            var retried = await FindByIdentityAsync(request, cancellationToken);
+            var retried = await FindByIdentityAsync(
+                request,
+                sourceType,
+                normalizedProvider,
+                normalizedProviderPlaceId,
+                cancellationToken);
             if (retried is not null)
             {
                 return retried;
@@ -46,7 +66,44 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
         }
     }
 
-    private Task<Place?> FindByIdentityAsync(CreatePlaceRequest request, CancellationToken cancellationToken)
+    public async Task<Place> UpdateCustomDisplayNameAsync(
+        Guid currentUserId,
+        Guid placeId,
+        UpdateCustomPlaceDisplayNameRequest request,
+        CancellationToken cancellationToken)
+    {
+        var place = await dbContext.Places.SingleOrDefaultAsync(x => x.Id == placeId, cancellationToken)
+            ?? throw ApiException.NotFound("Place not found.", "place_not_found");
+
+        if (!place.IsCustomPin)
+        {
+            throw ApiException.Forbidden("Only custom map pins can be renamed.", "place_custom_name_forbidden");
+        }
+
+        if (!place.CanEditCustomDisplayName(currentUserId))
+        {
+            throw ApiException.Forbidden("Only the original creator can rename this custom place.", "place_custom_name_forbidden");
+        }
+
+        try
+        {
+            place.SetCustomDisplayName(currentUserId, request.DisplayName);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw ApiException.BadRequest(exception.Message, "place_custom_name_invalid");
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return place;
+    }
+
+    private Task<Place?> FindByIdentityAsync(
+        CreatePlaceRequest request,
+        PlaceSourceType sourceType,
+        string? provider,
+        string? providerPlaceId,
+        CancellationToken cancellationToken)
     {
         var fingerprint = Place.BuildFingerprint(
             request.Name,
@@ -57,11 +114,11 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
             request.Longitude);
 
         return dbContext.Places.FirstOrDefaultAsync(
-            x => (!string.IsNullOrWhiteSpace(request.Provider)
-                    && !string.IsNullOrWhiteSpace(request.ProviderPlaceId)
-                    && x.Provider == request.Provider.ToLower()
-                    && x.ProviderPlaceId == request.ProviderPlaceId)
-                 || x.IdentityFingerprint == fingerprint,
+            x => x.SourceType == sourceType
+                 && ((sourceType == PlaceSourceType.ProviderVenue
+                        && x.Provider == provider
+                        && x.ProviderPlaceId == providerPlaceId)
+                     || x.IdentityFingerprint == fingerprint),
             cancellationToken);
     }
 }

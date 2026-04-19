@@ -37,11 +37,15 @@ public static class DtoMapper
         new(
             place.Id,
             place.Name,
+            place.DisplayName,
+            place.CustomDisplayName,
+            place.SourceType,
             place.Address,
             place.City,
             place.CountryCode,
             place.Latitude,
             place.Longitude,
+            place.CreatedByUserId,
             categoryNames);
 
     public static PhotoDto ToDto(this Photo photo) =>

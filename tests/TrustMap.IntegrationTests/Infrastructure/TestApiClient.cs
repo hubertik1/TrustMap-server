@@ -37,6 +37,17 @@ internal sealed class TestApiClient(HttpClient httpClient)
 
     public async Task<Guid> CreatePlaceAsync(string suffix, double latitude = 52.2297, double longitude = 21.0122)
     {
+        var place = await CreatePlaceSummaryAsync(suffix, latitude, longitude);
+        return place.Id;
+    }
+
+    public async Task<PlaceSummaryDto> CreatePlaceSummaryAsync(
+        string suffix,
+        double latitude = 52.2297,
+        double longitude = 21.0122,
+        string? provider = null,
+        string? providerPlaceId = null)
+    {
         var response = await HttpClient.PostAsJsonAsync(
             "/places",
             new CreatePlaceRequest
@@ -46,12 +57,26 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 City = "Warsaw",
                 CountryCode = "PL",
                 Latitude = latitude,
-                Longitude = longitude
+                Longitude = longitude,
+                Provider = provider,
+                ProviderPlaceId = providerPlaceId
             });
 
         await EnsureSuccessAsync(response);
-        var place = (await response.Content.ReadFromJsonAsync<PlaceSummaryDto>(JsonDefaults.Options))!;
-        return place.Id;
+        return (await response.Content.ReadFromJsonAsync<PlaceSummaryDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<PlaceSummaryDto> UpdateCustomPlaceDisplayNameAsync(Guid placeId, string displayName)
+    {
+        var response = await HttpClient.PatchAsJsonAsync(
+            $"/places/{placeId}/custom-display-name",
+            new UpdateCustomPlaceDisplayNameRequest
+            {
+                DisplayName = displayName
+            });
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<PlaceSummaryDto>(JsonDefaults.Options))!;
     }
 
     public async Task<Guid> CreatePlaceReviewAsync(

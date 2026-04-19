@@ -527,6 +527,16 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CustomDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CustomDisplayNameSetByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CustomDisplayNameUpdatedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("IdentityFingerprint")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -548,6 +558,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NormalizedCustomDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NormalizedName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -561,6 +575,11 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -568,8 +587,12 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("CustomDisplayNameSetByUserId");
+
                     b.HasIndex("IdentityFingerprint")
                         .IsUnique();
+
+                    b.HasIndex("NormalizedCustomDisplayName");
 
                     b.HasIndex("NormalizedName");
 
@@ -909,7 +932,14 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("TrustMap.Domain.Entities.User", "CustomDisplayNameSetByUser")
+                        .WithMany()
+                        .HasForeignKey("CustomDisplayNameSetByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("CustomDisplayNameSetByUser");
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.PlaceCategoryAssignment", b =>

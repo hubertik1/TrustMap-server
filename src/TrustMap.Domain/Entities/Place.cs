@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using TrustMap.Domain.Common;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
 
@@ -53,6 +54,16 @@ public sealed class Place
 
     public string? ProviderPlaceId { get; private set; }
 
+    public PlaceSourceType SourceType { get; private set; }
+
+    public string? CustomDisplayName { get; private set; }
+
+    public string? NormalizedCustomDisplayName { get; private set; }
+
+    public Guid? CustomDisplayNameSetByUserId { get; private set; }
+
+    public DateTime? CustomDisplayNameUpdatedAt { get; private set; }
+
     public Guid? CreatedByUserId { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
@@ -61,6 +72,8 @@ public sealed class Place
 
     public User? CreatedByUser { get; private set; }
 
+    public User? CustomDisplayNameSetByUser { get; private set; }
+
     public ICollection<PlaceReview> PlaceReviews { get; } = new List<PlaceReview>();
 
     public ICollection<DishReview> DishReviews { get; } = new List<DishReview>();
@@ -68,6 +81,10 @@ public sealed class Place
     public ICollection<Photo> Photos { get; } = new List<Photo>();
 
     public ICollection<PlaceCategoryAssignment> CategoryAssignments { get; } = new List<PlaceCategoryAssignment>();
+
+    public bool IsCustomPin => SourceType == PlaceSourceType.CustomPin;
+
+    public string DisplayName => ResolveDisplayName(SourceType, Name, Address, CustomDisplayName);
 
     public void Update(
         string name,
@@ -97,10 +114,69 @@ public sealed class Place
         CountryCode = string.IsNullOrWhiteSpace(countryCode) ? null : countryCode.Trim().ToUpperInvariant();
         Latitude = latitude;
         Longitude = longitude;
-        Provider = string.IsNullOrWhiteSpace(provider) ? null : provider.Trim().ToLowerInvariant();
-        ProviderPlaceId = string.IsNullOrWhiteSpace(providerPlaceId) ? null : providerPlaceId.Trim();
+        SourceType = ResolveSourceType(provider, providerPlaceId);
+        Provider = SourceType == PlaceSourceType.ProviderVenue
+            ? provider!.Trim().ToLowerInvariant()
+            : null;
+        ProviderPlaceId = SourceType == PlaceSourceType.ProviderVenue
+            ? providerPlaceId!.Trim()
+            : null;
         IdentityFingerprint = BuildFingerprint(Name, Address, City, CountryCode, latitude, longitude);
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public bool CanEditCustomDisplayName(Guid userId) =>
+        IsCustomPin
+        && CreatedByUserId.HasValue
+        && CreatedByUserId.Value == userId;
+
+    public void SetCustomDisplayName(Guid userId, string customDisplayName)
+    {
+        if (!IsCustomPin)
+        {
+            throw new InvalidOperationException("Only custom map pins can be renamed.");
+        }
+
+        if (!CanEditCustomDisplayName(userId))
+        {
+            throw new InvalidOperationException("Only the original creator can rename this custom place.");
+        }
+
+        if (string.IsNullOrWhiteSpace(customDisplayName))
+        {
+            throw new InvalidOperationException("Custom place name cannot be empty.");
+        }
+
+        CustomDisplayName = customDisplayName.Trim();
+        NormalizedCustomDisplayName = TextNormalizer.NormalizeForLookup(CustomDisplayName);
+        CustomDisplayNameSetByUserId = userId;
+        CustomDisplayNameUpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public static PlaceSourceType ResolveSourceType(string? provider, string? providerPlaceId)
+    {
+        return !string.IsNullOrWhiteSpace(provider)
+               && !string.IsNullOrWhiteSpace(providerPlaceId)
+               && !string.Equals(provider.Trim(), "manual", StringComparison.OrdinalIgnoreCase)
+            ? PlaceSourceType.ProviderVenue
+            : PlaceSourceType.CustomPin;
+    }
+
+    public static string ResolveDisplayName(
+        PlaceSourceType sourceType,
+        string name,
+        string address,
+        string? customDisplayName)
+    {
+        if (!string.IsNullOrWhiteSpace(customDisplayName))
+        {
+            return customDisplayName.Trim();
+        }
+
+        return sourceType == PlaceSourceType.CustomPin
+            ? address.Trim()
+            : name.Trim();
     }
 
     public static string BuildFingerprint(

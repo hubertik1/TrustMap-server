@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Map;
 using TrustMap.Api.Services;
+using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Api.Controllers;
@@ -67,6 +69,8 @@ public sealed class MapController(
                 x.Rating,
                 x.UpdatedAt,
                 x.Place.Name,
+                x.Place.CustomDisplayName,
+                x.Place.SourceType,
                 x.Place.Address,
                 x.Place.City,
                 x.Place.CountryCode,
@@ -82,6 +86,8 @@ public sealed class MapController(
                 null,
                 x.UpdatedAt,
                 x.Place.Name,
+                x.Place.CustomDisplayName,
+                x.Place.SourceType,
                 x.Place.Address,
                 x.Place.City,
                 x.Place.CountryCode,
@@ -171,6 +177,9 @@ public sealed class MapController(
                 return new MapPlaceDto(
                     x.Key,
                     place.Name,
+                    Place.ResolveDisplayName(place.SourceType, place.Name, place.Address, place.CustomDisplayName),
+                    place.CustomDisplayName,
+                    place.SourceType,
                     place.Address,
                     place.City,
                     place.CountryCode,
@@ -198,6 +207,8 @@ file sealed record MapActivitySeed(
     double? Rating,
     DateTime UpdatedAt,
     string Name,
+    string? CustomDisplayName,
+    PlaceSourceType SourceType,
     string Address,
     string? City,
     string? CountryCode,

@@ -6,6 +6,7 @@ using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Common;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Api.Controllers;
@@ -28,7 +29,9 @@ public sealed class PlacesController(
 
         var places = await dbContext.Places
             .AsNoTracking()
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.SourceType == PlaceSourceType.CustomPin
+                ? x.NormalizedCustomDisplayName ?? x.NormalizedAddress
+                : x.NormalizedName)
             .Take(take)
             .ToListAsync(cancellationToken);
 
@@ -52,9 +55,20 @@ public sealed class PlacesController(
 
         var places = await dbContext.Places
             .AsNoTracking()
-            .Where(x => x.NormalizedName.Contains(normalized) || x.NormalizedAddress.Contains(normalized))
-            .OrderBy(x => x.NormalizedName.StartsWith(normalized) ? 0 : 1)
-            .ThenBy(x => x.Name)
+            .Where(x =>
+                x.NormalizedName.Contains(normalized)
+                || x.NormalizedAddress.Contains(normalized)
+                || (x.NormalizedCustomDisplayName != null && x.NormalizedCustomDisplayName.Contains(normalized)))
+            .OrderBy(x => x.NormalizedCustomDisplayName != null && x.NormalizedCustomDisplayName.StartsWith(normalized)
+                ? 0
+                : x.SourceType == PlaceSourceType.CustomPin && x.NormalizedAddress.StartsWith(normalized)
+                    ? 1
+                    : x.NormalizedName.StartsWith(normalized)
+                        ? 2
+                        : 3)
+            .ThenBy(x => x.SourceType == PlaceSourceType.CustomPin
+                ? x.CustomDisplayName ?? x.Address
+                : x.Name)
             .Take(take)
             .ToListAsync(cancellationToken);
 
@@ -132,11 +146,15 @@ public sealed class PlacesController(
         return Ok(new PlaceDetailDto(
             place.Id,
             place.Name,
+            place.DisplayName,
+            place.CustomDisplayName,
+            place.SourceType,
             place.Address,
             place.City,
             place.CountryCode,
             place.Latitude,
             place.Longitude,
+            place.CreatedByUserId,
             categoryNames,
             visiblePlaceReviewCount,
             visibleDishReviewCount,
@@ -156,5 +174,17 @@ public sealed class PlacesController(
         var place = await placeCatalogService.CreateOrGetAsync(currentUserId, request, cancellationToken);
         var dto = place.ToSummaryDto();
         return Created($"/places/{place.Id}", dto);
+    }
+
+    [HttpPatch("{id:guid}/custom-display-name")]
+    [ProducesResponseType<PlaceSummaryDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PlaceSummaryDto>> UpdateCustomDisplayName(
+        Guid id,
+        [FromBody] UpdateCustomPlaceDisplayNameRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var place = await placeCatalogService.UpdateCustomDisplayNameAsync(currentUserId, id, request, cancellationToken);
+        return Ok(place.ToSummaryDto());
     }
 }

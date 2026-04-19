@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.Api.Features.Places;
 
@@ -31,24 +32,39 @@ public sealed class CreatePlaceRequest
     public string? ProviderPlaceId { get; init; }
 }
 
+public sealed class UpdateCustomPlaceDisplayNameRequest
+{
+    [Required]
+    [StringLength(200)]
+    public string DisplayName { get; init; } = null!;
+}
+
 public sealed record PlaceSummaryDto(
     Guid Id,
     string Name,
+    string DisplayName,
+    string? CustomDisplayName,
+    PlaceSourceType SourceType,
     string Address,
     string? City,
     string? CountryCode,
     double Latitude,
     double Longitude,
+    Guid? CreatedByUserId,
     IReadOnlyList<string> CategoryNames);
 
 public sealed record PlaceDetailDto(
     Guid Id,
     string Name,
+    string DisplayName,
+    string? CustomDisplayName,
+    PlaceSourceType SourceType,
     string Address,
     string? City,
     string? CountryCode,
     double Latitude,
     double Longitude,
+    Guid? CreatedByUserId,
     IReadOnlyList<string> CategoryNames,
     int VisiblePlaceReviewCount,
     int VisibleDishReviewCount,
