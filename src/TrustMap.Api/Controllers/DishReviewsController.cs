@@ -106,7 +106,7 @@ public sealed class DishReviewsController(
         if (!supportsDishReviews)
         {
             throw ApiException.BadRequest(
-                "Dish reviews can be created only for places in the Restaurant category.",
+                $"Dish reviews can be created only for places in the {CategoryAssignmentService.RestaurantsCategoryName} category.",
                 "dish_review_place_not_restaurant");
         }
 

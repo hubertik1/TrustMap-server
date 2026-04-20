@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
+using TrustMap.Api.Features.Categories;
 using TrustMap.Api.Features.Feed;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
@@ -189,6 +190,50 @@ public sealed class ApiCompatibilityTests
             });
 
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Categories_AreLockedToRestaurantsOnly_AndRejectLegacyCategoryIds()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var client = new TestApiClient(factory.CreateClient());
+        var session = await client.SignInAsync("alice", "Alice");
+        client.Authenticate(session.AccessToken);
+
+        var myCategories = await client.HttpClient.GetFromJsonAsync<IReadOnlyList<CategoryDto>>("/categories/my", JsonDefaults.Options);
+        Assert.NotNull(myCategories);
+        var category = Assert.Single(myCategories!);
+        Assert.Equal(TestApiClient.DefaultCategoryId, category.Id);
+        Assert.Equal("Restaurants", category.Name);
+        Assert.True(category.IsDefault);
+
+        var friendCategories = await client.HttpClient.GetFromJsonAsync<IReadOnlyList<CategoryDto>>("/categories/friends", JsonDefaults.Options);
+        Assert.NotNull(friendCategories);
+        Assert.Empty(friendCategories!);
+
+        var createCategoryResponse = await client.HttpClient.PostAsJsonAsync(
+            "/categories",
+            new CreateCategoryRequest
+            {
+                Name = "Bars"
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, createCategoryResponse.StatusCode);
+
+        var placeId = await client.CreatePlaceAsync("restaurants-only");
+        var invalidCategoryResponse = await client.HttpClient.PostAsJsonAsync(
+            "/place-reviews",
+            new CreatePlaceReviewRequest
+            {
+                PlaceId = placeId,
+                CategoryId = Guid.Parse("11111111-1111-1111-1111-111111111104"),
+                Visibility = VisibilityLevel.Public,
+                Rating = 4,
+                Title = "Invalid category",
+                Body = "Should be rejected"
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidCategoryResponse.StatusCode);
     }
 
     private static byte[] CreateTestJpegBytes(int width, int height)
