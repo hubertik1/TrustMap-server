@@ -51,6 +51,37 @@ public sealed class ApiCompatibilityTests
     }
 
     [Fact]
+    public async Task PatchMe_WithMultipartAvatarReplacement_StoresAvatarUrl()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var client = new TestApiClient(factory.CreateClient());
+        var session = await client.SignInAsync("alice", "Alice");
+        client.Authenticate(session.AccessToken);
+
+        using var multipart = new MultipartFormDataContent();
+        multipart.Add(new StringContent("alice updated#1234"), "handle");
+        multipart.Add(new StringContent("Alice Updated"), "displayName");
+        multipart.Add(new StringContent("Avatar bio"), "bio");
+        multipart.Add(new StringContent("Replace"), "avatarAction");
+
+        var fileContent = new ByteArrayContent(CreateTestJpegBytes(width: 320, height: 320));
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        multipart.Add(fileContent, "avatar", "avatar.jpg");
+
+        var response = await client.HttpClient.PatchAsync("/me", multipart);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options);
+        Assert.NotNull(updated);
+        Assert.Equal("Alice Updated", updated!.DisplayName);
+        Assert.Equal("Avatar bio", updated.Bio);
+        Assert.NotNull(updated.AvatarUrl);
+        Assert.StartsWith("/uploads/", updated.AvatarUrl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PlaceSearch_IsCaseInsensitive_ForNameAndAddress()
     {
         await using var factory = new TrustMapWebApplicationFactory();
