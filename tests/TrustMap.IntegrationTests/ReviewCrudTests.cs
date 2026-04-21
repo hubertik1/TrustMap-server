@@ -45,6 +45,36 @@ public sealed class ReviewCrudTests
     }
 
     [Fact]
+    public async Task CreatePlaceReview_WithNonRestaurantDefaultCategory_Works()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var client = new TestApiClient(factory.CreateClient());
+        var session = await client.SignInAsync("alice", "Alice");
+        client.Authenticate(session.AccessToken);
+
+        var placeId = await client.CreatePlaceAsync("bars");
+
+        var response = await client.HttpClient.PostAsJsonAsync(
+            "/place-reviews",
+            new CreatePlaceReviewRequest
+            {
+                PlaceId = placeId,
+                CategoryId = TestApiClient.AlternateDefaultCategoryId,
+                Visibility = VisibilityLevel.Public,
+                Rating = 4,
+                Title = "Solid",
+                Body = "Works for bars"
+            });
+
+        response.EnsureSuccessStatusCode();
+        var review = (await response.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
+        Assert.Equal(TestApiClient.AlternateDefaultCategoryId, review.CategoryId);
+        Assert.Equal("Bars", review.CategoryName);
+    }
+
+    [Fact]
     public async Task CreateEditDeleteDishReview_Works()
     {
         await using var factory = new TrustMapWebApplicationFactory();

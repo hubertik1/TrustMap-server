@@ -193,7 +193,7 @@ public sealed class ApiCompatibilityTests
     }
 
     [Fact]
-    public async Task Categories_AreLockedToRestaurantsOnly_AndRejectLegacyCategoryIds()
+    public async Task Categories_ExposeAllDefaultOptions_WhileCategoryCrudRemainsLocked()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -222,19 +222,52 @@ public sealed class ApiCompatibilityTests
             });
         Assert.Equal(HttpStatusCode.Forbidden, createCategoryResponse.StatusCode);
 
-        var placeId = await client.CreatePlaceAsync("restaurants-only");
-        var invalidCategoryResponse = await client.HttpClient.PostAsJsonAsync(
+        var placeId = await client.CreatePlaceAsync("default-categories");
+        var placeReviewResponse = await client.HttpClient.PostAsJsonAsync(
             "/place-reviews",
             new CreatePlaceReviewRequest
             {
                 PlaceId = placeId,
-                CategoryId = Guid.Parse("11111111-1111-1111-1111-111111111104"),
+                CategoryId = TestApiClient.AlternateDefaultCategoryId,
                 Visibility = VisibilityLevel.Public,
-                Rating = 4,
-                Title = "Invalid category",
-                Body = "Should be rejected"
+                Rating = 5,
+                Title = "Default category works",
+                Body = "Should succeed"
             });
-        Assert.Equal(HttpStatusCode.BadRequest, invalidCategoryResponse.StatusCode);
+
+        placeReviewResponse.EnsureSuccessStatusCode();
+        var review = (await placeReviewResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
+        Assert.Equal(TestApiClient.AlternateDefaultCategoryId, review.CategoryId);
+        Assert.Equal("Bars", review.CategoryName);
+    }
+
+    [Fact]
+    public async Task DishReviews_StillRequireRestaurantsCategory()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var client = new TestApiClient(factory.CreateClient());
+        var session = await client.SignInAsync("alice", "Alice");
+        client.Authenticate(session.AccessToken);
+
+        var placeId = await client.CreatePlaceAsync("dish-category-check");
+        await client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Public, 4, "Base review");
+
+        var response = await client.HttpClient.PostAsJsonAsync(
+            "/dish-reviews",
+            new CreateDishReviewRequest
+            {
+                PlaceId = placeId,
+                PlaceReviewId = null,
+                CategoryId = TestApiClient.AlternateDefaultCategoryId,
+                Visibility = VisibilityLevel.Public,
+                DishName = "Burger",
+                Rating = 4,
+                Body = "Should fail"
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     private static byte[] CreateTestJpegBytes(int width, int height)

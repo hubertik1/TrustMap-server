@@ -94,6 +94,7 @@ public sealed class DishReviewsController(
         CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
+        EnsureRestaurantCategory(request.CategoryId);
         var place = await dbContext.Places.SingleOrDefaultAsync(x => x.Id == request.PlaceId, cancellationToken)
             ?? throw ApiException.NotFound("Place not found.", "place_not_found");
 
@@ -157,6 +158,7 @@ public sealed class DishReviewsController(
         CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
+        EnsureRestaurantCategory(request.CategoryId);
         var review = await dbContext.DishReviews
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
@@ -223,5 +225,17 @@ public sealed class DishReviewsController(
         }
 
         return NoContent();
+    }
+
+    private static void EnsureRestaurantCategory(Guid categoryId)
+    {
+        if (categoryId == CategoryAssignmentService.RestaurantsCategoryId)
+        {
+            return;
+        }
+
+        throw ApiException.BadRequest(
+            $"Dish reviews can be created only in the {CategoryAssignmentService.RestaurantsCategoryName} category.",
+            "dish_review_category_not_supported");
     }
 }

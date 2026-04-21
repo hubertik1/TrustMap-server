@@ -12,6 +12,7 @@ namespace TrustMap.IntegrationTests.Infrastructure;
 internal sealed class TestApiClient(HttpClient httpClient)
 {
     public static readonly Guid DefaultCategoryId = CategoryAssignmentService.RestaurantsCategoryId;
+    public static readonly Guid AlternateDefaultCategoryId = Guid.Parse("11111111-1111-1111-1111-111111111104");
 
     public HttpClient HttpClient { get; } = httpClient;
 

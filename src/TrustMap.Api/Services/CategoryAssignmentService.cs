@@ -12,13 +12,6 @@ public sealed class CategoryAssignmentService(TrustMapDbContext dbContext)
 
     public async Task<Category> GetAccessibleCategoryAsync(Guid currentUserId, Guid categoryId, CancellationToken cancellationToken)
     {
-        if (categoryId != RestaurantsCategoryId)
-        {
-            throw ApiException.BadRequest(
-                $"TrustMap currently supports only the {RestaurantsCategoryName} category.",
-                "category_not_supported");
-        }
-
         var category = await dbContext.Categories
             .Include(x => x.OwnerUser)
             .SingleOrDefaultAsync(x => x.Id == categoryId, cancellationToken)
@@ -29,7 +22,7 @@ public sealed class CategoryAssignmentService(TrustMapDbContext dbContext)
             return category;
         }
 
-        throw ApiException.Forbidden("Select the default Restaurants category.", "category_forbidden");
+        throw ApiException.Forbidden("Select one of the default TrustMap categories.", "category_forbidden");
     }
 
     public async Task UpsertPlaceAssignmentAsync(
@@ -38,7 +31,7 @@ public sealed class CategoryAssignmentService(TrustMapDbContext dbContext)
         Guid categoryId,
         CancellationToken cancellationToken)
     {
-        await GetAccessibleCategoryAsync(currentUserId, categoryId, cancellationToken);
+        var category = await GetAccessibleCategoryAsync(currentUserId, categoryId, cancellationToken);
 
         var assignment = await dbContext.PlaceCategoryAssignments.SingleOrDefaultAsync(
             x => x.PlaceId == placeId && x.AssignedByUserId == currentUserId,
@@ -47,11 +40,11 @@ public sealed class CategoryAssignmentService(TrustMapDbContext dbContext)
         if (assignment is null)
         {
             dbContext.PlaceCategoryAssignments.Add(
-                new PlaceCategoryAssignment(Guid.CreateVersion7(), placeId, RestaurantsCategoryId, currentUserId));
+                new PlaceCategoryAssignment(Guid.CreateVersion7(), placeId, category.Id, currentUserId));
             return;
         }
 
-        assignment.UpdateCategory(RestaurantsCategoryId);
+        assignment.UpdateCategory(category.Id);
     }
 
     public async Task RemoveAssignmentIfUnusedAsync(Guid currentUserId, Guid placeId, CancellationToken cancellationToken)
