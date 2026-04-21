@@ -85,8 +85,9 @@ public sealed class CategoriesController(
         return dbContext.Categories
             .AsNoTracking()
             .Include(x => x.OwnerUser)
-            .Where(x => x.Id == CategoryAssignmentService.RestaurantsCategoryId)
-            .OrderBy(x => x.Name);
+            .Where(x => x.IsDefault)
+            .OrderBy(x => x.Id == CategoryAssignmentService.RestaurantsCategoryId ? 0 : 1)
+            .ThenBy(x => x.Name);
     }
 
     private static ApiException RestaurantsOnlyCategoryException() =>

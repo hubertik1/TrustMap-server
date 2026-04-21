@@ -204,7 +204,8 @@ public sealed class ApiCompatibilityTests
 
         var myCategories = await client.HttpClient.GetFromJsonAsync<IReadOnlyList<CategoryDto>>("/categories/my", JsonDefaults.Options);
         Assert.NotNull(myCategories);
-        var category = Assert.Single(myCategories!);
+        Assert.True(myCategories!.Count > 1);
+        var category = Assert.Single(myCategories!, x => x.Id == TestApiClient.DefaultCategoryId);
         Assert.Equal(TestApiClient.DefaultCategoryId, category.Id);
         Assert.Equal("Restaurants", category.Name);
         Assert.True(category.IsDefault);
