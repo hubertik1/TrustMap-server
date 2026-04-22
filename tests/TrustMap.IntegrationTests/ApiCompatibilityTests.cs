@@ -224,7 +224,7 @@ public sealed class ApiCompatibilityTests
     }
 
     [Fact]
-    public async Task Categories_ExposeAllDefaultOptions_WhileCategoryCrudRemainsLocked()
+    public async Task Categories_ExposeAllDefaultOptions_AndSupportCustomCategoryCrud()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -249,9 +249,15 @@ public sealed class ApiCompatibilityTests
             "/categories",
             new CreateCategoryRequest
             {
-                Name = "Bars"
+                Name = "Sunset Spots"
             });
-        Assert.Equal(HttpStatusCode.Forbidden, createCategoryResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, createCategoryResponse.StatusCode);
+
+        var createdCategory = await createCategoryResponse.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options);
+        Assert.NotNull(createdCategory);
+        Assert.False(createdCategory!.IsDefault);
+        Assert.True(createdCategory.IsOwnedByCurrentUser);
+        Assert.True(createdCategory.IsVisibleForCurrentUser);
 
         var placeId = await client.CreatePlaceAsync("default-categories");
         var placeReviewResponse = await client.HttpClient.PostAsJsonAsync(

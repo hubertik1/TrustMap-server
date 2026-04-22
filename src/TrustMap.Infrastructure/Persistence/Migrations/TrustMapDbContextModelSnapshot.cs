@@ -74,6 +74,9 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDefault")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -94,7 +97,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IsDefault", "NormalizedName");
 
-                    b.HasIndex("OwnerUserId", "NormalizedName")
+                    b.HasIndex("OwnerUserId", "NormalizedName", "IsDeleted")
                         .IsUnique();
 
                     b.ToTable("categories", (string)null);
@@ -105,6 +108,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("d53a109f-9617-4a0a-b95a-5ad277a30764"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Restaurants",
                             NormalizedName = "restaurants",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -114,6 +118,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111101"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "BBQ Spots",
                             NormalizedName = "bbq spots",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -123,6 +128,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111102"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Football Fields",
                             NormalizedName = "football fields",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -132,6 +138,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111103"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Cafés",
                             NormalizedName = "cafes",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -141,6 +148,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111104"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Bars",
                             NormalizedName = "bars",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -150,6 +158,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111105"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Parks",
                             NormalizedName = "parks",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -159,6 +168,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111106"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Gyms",
                             NormalizedName = "gyms",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -168,6 +178,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111107"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Playgrounds",
                             NormalizedName = "playgrounds",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -177,6 +188,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111108"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Basketball Courts",
                             NormalizedName = "basketball courts",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -186,6 +198,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111109"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Tennis Courts",
                             NormalizedName = "tennis courts",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -195,6 +208,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110a"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Swimming Pools",
                             NormalizedName = "swimming pools",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -204,6 +218,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110b"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Picnic Spots",
                             NormalizedName = "picnic spots",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -213,6 +228,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110c"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Beaches",
                             NormalizedName = "beaches",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -222,6 +238,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110d"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Lakes",
                             NormalizedName = "lakes",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -231,6 +248,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110e"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Shopping Places",
                             NormalizedName = "shopping places",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -240,6 +258,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-11111111110f"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Coworking Spaces",
                             NormalizedName = "coworking spaces",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -249,6 +268,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111110"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Study Spots",
                             NormalizedName = "study spots",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -258,6 +278,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Dog Parks",
                             NormalizedName = "dog parks",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -267,6 +288,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111112"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Cinemas",
                             NormalizedName = "cinemas",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -276,6 +298,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                             Id = new Guid("11111111-1111-1111-1111-111111111113"),
                             CreatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsDefault = true,
+                            IsDeleted = false,
                             Name = "Museums",
                             NormalizedName = "museums",
                             UpdatedAt = new DateTime(2026, 4, 8, 0, 0, 0, 0, DateTimeKind.Utc)
@@ -789,7 +812,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("TrustMap.Domain.Entities.UserSavedCategory", b =>
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserCategoryMembership", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
@@ -797,14 +820,28 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("HiddenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.HasKey("UserId", "CategoryId");
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("user_saved_categories", (string)null);
+                    b.HasIndex("UserId", "IsVisible");
+
+                    b.ToTable("user_category_memberships", (string)null);
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.AppleIdentity", b =>
@@ -999,16 +1036,16 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TrustMap.Domain.Entities.UserSavedCategory", b =>
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserCategoryMembership", b =>
                 {
                     b.HasOne("TrustMap.Domain.Entities.Category", "Category")
-                        .WithMany("SavedByUsers")
+                        .WithMany("Memberships")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("TrustMap.Domain.Entities.User", "User")
-                        .WithMany("SavedCategories")
+                        .WithMany("CategoryMemberships")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1020,9 +1057,9 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TrustMap.Domain.Entities.Category", b =>
                 {
-                    b.Navigation("PlaceAssignments");
+                    b.Navigation("Memberships");
 
-                    b.Navigation("SavedByUsers");
+                    b.Navigation("PlaceAssignments");
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.DishReview", b =>
@@ -1052,6 +1089,8 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("AppleIdentities");
 
+                    b.Navigation("CategoryMemberships");
+
                     b.Navigation("DishReviews");
 
                     b.Navigation("OwnedCategories");
@@ -1063,8 +1102,6 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Navigation("PlaceReviews");
 
                     b.Navigation("RefreshTokens");
-
-                    b.Navigation("SavedCategories");
                 });
 #pragma warning restore 612, 618
         }

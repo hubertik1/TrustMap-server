@@ -34,6 +34,8 @@ public sealed class Category
 
     public bool IsDefault { get; private set; }
 
+    public bool IsDeleted { get; private set; }
+
     public DateTime CreatedAt { get; private set; }
 
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
@@ -42,7 +44,7 @@ public sealed class Category
 
     public ICollection<PlaceCategoryAssignment> PlaceAssignments { get; } = new List<PlaceCategoryAssignment>();
 
-    public ICollection<UserSavedCategory> SavedByUsers { get; } = new List<UserSavedCategory>();
+    public ICollection<UserCategoryMembership> Memberships { get; } = new List<UserCategoryMembership>();
 
     public void Rename(string name, string? iconName)
     {
@@ -54,6 +56,22 @@ public sealed class Category
         Name = name.Trim();
         NormalizedName = TextNormalizer.NormalizeForLookup(Name);
         IconName = string.IsNullOrWhiteSpace(iconName) ? null : iconName.Trim();
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SoftDelete()
+    {
+        if (IsDefault)
+        {
+            throw new InvalidOperationException("Default categories cannot be deleted.");
+        }
+
+        if (IsDeleted)
+        {
+            return;
+        }
+
+        IsDeleted = true;
         UpdatedAt = DateTime.UtcNow;
     }
 }

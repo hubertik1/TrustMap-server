@@ -5,24 +5,16 @@ using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Api.Services;
 
-public sealed class CategoryAssignmentService(TrustMapDbContext dbContext)
+public sealed class CategoryAssignmentService(
+    TrustMapDbContext dbContext,
+    CategoryMembershipService categoryMembershipService)
 {
     public static readonly Guid RestaurantsCategoryId = Guid.Parse("D53A109F-9617-4A0A-B95A-5AD277A30764");
     public const string RestaurantsCategoryName = "Restaurants";
 
     public async Task<Category> GetAccessibleCategoryAsync(Guid currentUserId, Guid categoryId, CancellationToken cancellationToken)
     {
-        var category = await dbContext.Categories
-            .Include(x => x.OwnerUser)
-            .SingleOrDefaultAsync(x => x.Id == categoryId, cancellationToken)
-            ?? throw ApiException.NotFound("Category not found.", "category_not_found");
-
-        if (category.IsDefault)
-        {
-            return category;
-        }
-
-        throw ApiException.Forbidden("Select one of the default TrustMap categories.", "category_forbidden");
+        return await categoryMembershipService.GetSelectableCategoryAsync(currentUserId, categoryId, cancellationToken);
     }
 
     public async Task UpsertPlaceAssignmentAsync(

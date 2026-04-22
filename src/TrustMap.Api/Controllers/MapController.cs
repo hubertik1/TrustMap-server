@@ -15,7 +15,8 @@ namespace TrustMap.Api.Controllers;
 [Route("map")]
 public sealed class MapController(
     TrustMapDbContext dbContext,
-    SocialGraphService socialGraphService) : ControllerBase
+    SocialGraphService socialGraphService,
+    CategoryMembershipService categoryMembershipService) : ControllerBase
 {
     [HttpGet("places")]
     [ProducesResponseType<IReadOnlyList<MapPlaceDto>>(StatusCodes.Status200OK)]
@@ -38,6 +39,11 @@ public sealed class MapController(
         var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
         var visibleUserIds = friendIds.Append(currentUserId).ToHashSet();
         take = Math.Clamp(take, 1, 500);
+
+        if (categoryId.HasValue)
+        {
+            _ = await categoryMembershipService.GetSelectableCategoryAsync(currentUserId, categoryId.Value, cancellationToken);
+        }
 
         var placeReviewQuery = dbContext.PlaceReviews
             .AsNoTracking()
@@ -98,7 +104,7 @@ public sealed class MapController(
 
         var categoryAssignmentsQuery = dbContext.PlaceCategoryAssignments
             .AsNoTracking()
-            .Where(x => visibleUserIds.Contains(x.AssignedByUserId));
+            .Where(x => visibleUserIds.Contains(x.AssignedByUserId) && !x.Category.IsDeleted);
 
         if (hasBounds)
         {

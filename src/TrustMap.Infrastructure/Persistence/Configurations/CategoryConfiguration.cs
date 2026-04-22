@@ -17,9 +17,10 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
         builder.Property(x => x.IconName).HasMaxLength(80);
         builder.Property(x => x.CreatedAt).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 
-        builder.HasIndex(x => new { x.OwnerUserId, x.NormalizedName }).IsUnique();
+        builder.HasIndex(x => new { x.OwnerUserId, x.NormalizedName, x.IsDeleted }).IsUnique();
         builder.HasIndex(x => new { x.IsDefault, x.NormalizedName });
 
         builder.HasOne(x => x.OwnerUser)
@@ -36,6 +37,7 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
                 IconName = (string?)null,
                 OwnerUserId = (Guid?)null,
                 IsDefault = true,
+                IsDeleted = false,
                 CreatedAt = DefaultCategorySeeds.SeedTimestampUtc,
                 UpdatedAt = DefaultCategorySeeds.SeedTimestampUtc
             }));

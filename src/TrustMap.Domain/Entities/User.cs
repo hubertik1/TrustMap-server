@@ -54,7 +54,7 @@ public sealed class User
 
     public ICollection<PlaceCategoryAssignment> PlaceCategoryAssignments { get; } = new List<PlaceCategoryAssignment>();
 
-    public ICollection<UserSavedCategory> SavedCategories { get; } = new List<UserSavedCategory>();
+    public ICollection<UserCategoryMembership> CategoryMemberships { get; } = new List<UserCategoryMembership>();
 
     public void UpdateProfile(string handle, string displayName, string? bio, string? avatarUrl)
     {

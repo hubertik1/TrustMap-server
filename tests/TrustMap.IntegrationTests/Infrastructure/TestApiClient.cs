@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using TrustMap.Api.Features.Auth;
+using TrustMap.Api.Features.Categories;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
@@ -128,6 +129,69 @@ internal sealed class TestApiClient(HttpClient httpClient)
         await EnsureSuccessAsync(response);
         var review = (await response.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
         return review.Id;
+    }
+
+    public async Task<CategoryDto> CreateCategoryAsync(string name, string? iconName = null)
+    {
+        var response = await HttpClient.PostAsJsonAsync(
+            "/categories",
+            new CreateCategoryRequest
+            {
+                Name = name,
+                IconName = iconName
+            });
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<CategoryDto> AdoptCategoryAsync(Guid categoryId)
+    {
+        var response = await HttpClient.PostAsync($"/categories/{categoryId}/adopt", content: null);
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<CategoryDto> HideCategoryAsync(Guid categoryId)
+    {
+        var response = await HttpClient.PostAsync($"/categories/{categoryId}/hide", content: null);
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<CategoryDto> UpdateCategoryAsync(Guid categoryId, string name, string? iconName = null)
+    {
+        var response = await HttpClient.PatchAsJsonAsync(
+            $"/categories/{categoryId}",
+            new UpdateCategoryRequest
+            {
+                Name = name,
+                IconName = iconName
+            });
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<IReadOnlyList<CategoryDto>> FetchMyCategoriesAsync()
+    {
+        var response = await HttpClient.GetAsync("/categories/my");
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<CategoryDto>>(JsonDefaults.Options))!;
+    }
+
+    public async Task<IReadOnlyList<CategoryDto>> FetchFriendCategoriesAsync()
+    {
+        var response = await HttpClient.GetAsync("/categories/friends");
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<CategoryDto>>(JsonDefaults.Options))!;
+    }
+
+    public async Task<IReadOnlyList<CategoryDto>> FetchHiddenCategoriesAsync()
+    {
+        var response = await HttpClient.GetAsync("/categories/hidden");
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<CategoryDto>>(JsonDefaults.Options))!;
     }
 
     public async Task<FriendRequestDto> SendFriendRequestAsync(Guid receiverUserId)

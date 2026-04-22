@@ -123,7 +123,10 @@ public sealed class PlacesController(
             ? []
             : await dbContext.PlaceCategoryAssignments
                 .AsNoTracking()
-                .Where(x => x.PlaceId == id && visibleContributorIds.Contains(x.AssignedByUserId))
+                .Where(x =>
+                    x.PlaceId == id
+                    && visibleContributorIds.Contains(x.AssignedByUserId)
+                    && !x.Category.IsDeleted)
                 .Select(x => x.Category.Name)
                 .Distinct()
                 .OrderBy(x => x)

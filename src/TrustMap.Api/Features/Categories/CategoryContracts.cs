@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using TrustMap.Api.Features.Users;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.Api.Features.Categories;
 
@@ -7,10 +8,21 @@ public sealed record CategoryDto(
     Guid Id,
     string Name,
     string? IconName,
+    Guid? OwnerUserId,
     bool IsDefault,
     bool IsOwnedByCurrentUser,
     UserSummaryDto? Owner,
-    DateTime CreatedAtUtc);
+    CategoryMembershipSource? CurrentUserSource,
+    bool IsVisibleForCurrentUser,
+    bool IsAdoptedByCurrentUser,
+    bool CanEdit,
+    bool CanDelete,
+    bool CanHide,
+    bool CanAdopt,
+    bool CanUnhide,
+    DateTime CreatedAtUtc,
+    DateTime? AddedAtUtc,
+    DateTime? HiddenAtUtc);
 
 public sealed class CreateCategoryRequest
 {
