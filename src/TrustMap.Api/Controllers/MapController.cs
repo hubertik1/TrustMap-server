@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Map;
+using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Entities;
 using TrustMap.Domain.Enums;
@@ -82,7 +83,10 @@ public sealed class MapController(
                 x.Place.CountryCode,
                 x.Place.Latitude,
                 x.Place.Longitude,
-                x.Place.CreatedByUserId))
+                x.Place.CreatedByUserId,
+                x.AuthorUser.Handle,
+                x.AuthorUser.DisplayName,
+                x.AuthorUser.AvatarUrl))
             .ToListAsync(cancellationToken);
 
         var dishReviews = await dishReviewQuery
@@ -99,7 +103,10 @@ public sealed class MapController(
                 x.Place.CountryCode,
                 x.Place.Latitude,
                 x.Place.Longitude,
-                x.Place.CreatedByUserId))
+                x.Place.CreatedByUserId,
+                x.AuthorUser.Handle,
+                x.AuthorUser.DisplayName,
+                x.AuthorUser.AvatarUrl))
             .ToListAsync(cancellationToken);
 
         var categoryAssignmentsQuery = dbContext.PlaceCategoryAssignments
@@ -165,6 +172,24 @@ public sealed class MapController(
             .GroupBy(x => x.PlaceId)
             .ToDictionary(x => x.Key, x => x.Count());
 
+        var recentContributorsByPlace = placeReviews
+            .Concat(dishReviews)
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.GroupBy(item => item.AuthorUserId)
+                    .Select(authorGroup => authorGroup
+                        .OrderByDescending(item => item.UpdatedAt)
+                        .First())
+                    .OrderByDescending(item => item.UpdatedAt)
+                    .Take(3)
+                    .Select(item => new UserSummaryDto(
+                        item.AuthorUserId,
+                        item.AuthorHandle,
+                        item.AuthorDisplayName,
+                        item.AuthorAvatarUrl))
+                    .ToArray());
+
         var categoryNamesByPlace = categoryAssignments
             .Where(x => grouped.TryGetValue(x.PlaceId, out var aggregation) && aggregation.Contributors.Contains(x.AssignedByUserId))
             .GroupBy(x => x.PlaceId)
@@ -197,7 +222,10 @@ public sealed class MapController(
                     dishCounts.GetValueOrDefault(x.Key, 0),
                     x.Value.AverageRating,
                     x.Value.Contributors.Count,
-                    x.Value.LatestActivity);
+                    x.Value.LatestActivity)
+                {
+                    RecentContributors = recentContributorsByPlace.GetValueOrDefault(x.Key, [])
+                };
             })
             .OrderByDescending(x => x.LatestActivityAtUtc)
             .Take(take)
@@ -220,7 +248,10 @@ file sealed record MapActivitySeed(
     string? CountryCode,
     double Latitude,
     double Longitude,
-    Guid? CreatedByUserId);
+    Guid? CreatedByUserId,
+    string AuthorHandle,
+    string AuthorDisplayName,
+    string? AuthorAvatarUrl);
 
 file sealed record MapCategorySeed(
     Guid PlaceId,

@@ -1,3 +1,4 @@
+using TrustMap.Api.Features.Users;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Api.Features.Map;
@@ -19,4 +20,7 @@ public sealed record MapPlaceDto(
     int VisibleDishReviewCount,
     double? AveragePlaceRating,
     int ContributorCount,
-    DateTime LatestActivityAtUtc);
+    DateTime LatestActivityAtUtc)
+{
+    public IReadOnlyList<UserSummaryDto> RecentContributors { get; init; } = [];
+}
