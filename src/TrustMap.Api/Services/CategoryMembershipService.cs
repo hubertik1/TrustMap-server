@@ -111,7 +111,7 @@ public sealed class CategoryMembershipService(
 
         return categories
             .Select(category => new CategoryMembershipView(category, memberships.GetValueOrDefault(category.Id)))
-            .Where(x => x.Membership is null)
+            .Where(x => x.Membership is null || !x.Membership.IsVisible)
             .OrderBy(x => x.Category.Name)
             .ThenBy(x => x.Category.OwnerUser?.DisplayName)
             .ToArray();
@@ -121,8 +121,6 @@ public sealed class CategoryMembershipService(
     {
         await EnsureDefaultMembershipsAsync(currentUserId, cancellationToken);
 
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
-
         var memberships = await dbContext.UserCategoryMemberships
             .AsNoTracking()
             .Include(x => x.Category)
@@ -130,16 +128,12 @@ public sealed class CategoryMembershipService(
             .Where(x =>
                 x.UserId == currentUserId
                 && !x.IsVisible
+                && x.Category.IsDefault
                 && !x.Category.IsDeleted)
             .ToListAsync(cancellationToken);
 
         return memberships
-            .Where(x =>
-                x.Category.IsDefault
-                || x.Category.OwnerUserId == currentUserId
-                || (x.Category.OwnerUserId.HasValue && friendIds.Contains(x.Category.OwnerUserId.Value)))
-            .OrderBy(x => x.Category.IsDefault ? 0 : 1)
-            .ThenBy(x => x.Category.Id == CategoryAssignmentService.RestaurantsCategoryId ? 0 : 1)
+            .OrderBy(x => x.Category.Id == CategoryAssignmentService.RestaurantsCategoryId ? 0 : 1)
             .ThenBy(x => x.Category.Name)
             .Select(x => new CategoryMembershipView(x.Category, x))
             .ToArray();

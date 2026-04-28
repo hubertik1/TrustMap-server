@@ -120,13 +120,12 @@ public sealed class CategoryFlowTests
         Assert.DoesNotContain(bobVisibleCategoriesAfterHide, x => x.Id == sunsetSpots.Id);
 
         var bobFriendCategoriesAfterHide = await bobClient.FetchFriendCategoriesAsync();
-        Assert.DoesNotContain(bobFriendCategoriesAfterHide, x => x.Id == sunsetSpots.Id);
+        var availableFriendCategory = Assert.Single(bobFriendCategoriesAfterHide, x => x.Id == sunsetSpots.Id);
+        Assert.True(availableFriendCategory.CanAdopt);
+        Assert.False(availableFriendCategory.CanUnhide);
 
         var bobHiddenCategoriesAfterHide = await bobClient.FetchHiddenCategoriesAsync();
-        var hiddenFriendCategory = Assert.Single(bobHiddenCategoriesAfterHide, x => x.Id == sunsetSpots.Id);
-        Assert.True(hiddenFriendCategory.IsAdoptedByCurrentUser);
-        Assert.False(hiddenFriendCategory.IsVisibleForCurrentUser);
-        Assert.True(hiddenFriendCategory.CanUnhide);
+        Assert.DoesNotContain(bobHiddenCategoriesAfterHide, x => x.Id == sunsetSpots.Id);
 
         var reAdopted = await bobClient.AdoptCategoryAsync(sunsetSpots.Id);
         Assert.Equal(sunsetSpots.Id, reAdopted.Id);
@@ -136,6 +135,130 @@ public sealed class CategoryFlowTests
         Assert.NotNull(reviewResponse);
         Assert.Equal(sunsetSpots.Id, reviewResponse.CategoryId);
         Assert.Equal("Sunset Spots", reviewResponse.CategoryName);
+    }
+
+    [Fact]
+    public async Task FriendCategory_RemoveReturnsToFriendsNotHidden()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var (aliceClient, bobClient, aliceUserId, _) = await CreateFriendClientsAsync(factory);
+
+        var quietCafes = await aliceClient.CreateCategoryAsync("Quiet Cafés");
+
+        var bobFriendCategories = await bobClient.FetchFriendCategoriesAsync();
+        var availableCategory = Assert.Single(bobFriendCategories, x => x.Id == quietCafes.Id);
+        Assert.True(availableCategory.CanAdopt);
+        Assert.Equal(aliceUserId, availableCategory.OwnerUserId);
+
+        var adopted = await bobClient.AdoptCategoryAsync(quietCafes.Id);
+        Assert.True(adopted.IsVisibleForCurrentUser);
+        Assert.True(adopted.IsAdoptedByCurrentUser);
+
+        var bobVisibleCategories = await bobClient.FetchMyCategoriesAsync();
+        Assert.Contains(bobVisibleCategories, x => x.Id == quietCafes.Id);
+
+        bobFriendCategories = await bobClient.FetchFriendCategoriesAsync();
+        Assert.DoesNotContain(bobFriendCategories, x => x.Id == quietCafes.Id);
+
+        var removed = await bobClient.HideCategoryAsync(quietCafes.Id);
+        Assert.False(removed.IsVisibleForCurrentUser);
+        Assert.True(removed.CanAdopt);
+        Assert.False(removed.CanUnhide);
+
+        bobVisibleCategories = await bobClient.FetchMyCategoriesAsync();
+        Assert.DoesNotContain(bobVisibleCategories, x => x.Id == quietCafes.Id);
+
+        bobFriendCategories = await bobClient.FetchFriendCategoriesAsync();
+        var returnedCategory = Assert.Single(bobFriendCategories, x => x.Id == quietCafes.Id);
+        Assert.True(returnedCategory.CanAdopt);
+
+        var bobHiddenCategories = await bobClient.FetchHiddenCategoriesAsync();
+        Assert.DoesNotContain(bobHiddenCategories, x => x.Id == quietCafes.Id);
+
+        var reAdopted = await bobClient.AdoptCategoryAsync(quietCafes.Id);
+        Assert.True(reAdopted.IsVisibleForCurrentUser);
+
+        bobVisibleCategories = await bobClient.FetchMyCategoriesAsync();
+        Assert.Contains(bobVisibleCategories, x => x.Id == quietCafes.Id);
+    }
+
+    [Fact]
+    public async Task OwnerDelete_RemovesCategoryForEveryone()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var (aliceClient, bobClient, _, _) = await CreateFriendClientsAsync(factory);
+
+        var bestRamen = await aliceClient.CreateCategoryAsync("Best Ramen");
+        await bobClient.AdoptCategoryAsync(bestRamen.Id);
+
+        var deleteResponse = await aliceClient.HttpClient.DeleteAsync($"/categories/{bestRamen.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var aliceVisibleCategories = await aliceClient.FetchMyCategoriesAsync();
+        Assert.DoesNotContain(aliceVisibleCategories, x => x.Id == bestRamen.Id);
+
+        var bobVisibleCategories = await bobClient.FetchMyCategoriesAsync();
+        Assert.DoesNotContain(bobVisibleCategories, x => x.Id == bestRamen.Id);
+
+        var bobFriendCategories = await bobClient.FetchFriendCategoriesAsync();
+        Assert.DoesNotContain(bobFriendCategories, x => x.Id == bestRamen.Id);
+
+        var bobHiddenCategories = await bobClient.FetchHiddenCategoriesAsync();
+        Assert.DoesNotContain(bobHiddenCategories, x => x.Id == bestRamen.Id);
+
+        var adoptDeletedResponse = await bobClient.HttpClient.PostAsync($"/categories/{bestRamen.Id}/adopt", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, adoptDeletedResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task HiddenDefault_NotSelectable()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var client = new TestApiClient(factory.CreateClient());
+        var session = await client.SignInAsync("alice", "Alice");
+        client.Authenticate(session.AccessToken);
+
+        await client.HideCategoryAsync(TestApiClient.DefaultCategoryId);
+
+        var firstPlaceId = await client.CreatePlaceAsync("hidden-default-create");
+        var createResponse = await client.HttpClient.PostAsJsonAsync(
+            "/place-reviews",
+            new CreatePlaceReviewRequest
+            {
+                PlaceId = firstPlaceId,
+                CategoryId = TestApiClient.DefaultCategoryId,
+                Visibility = VisibilityLevel.Public,
+                Rating = 4,
+                Title = "Hidden default",
+                Body = "Should not be selectable"
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, createResponse.StatusCode);
+
+        var secondPlaceId = await client.CreatePlaceAsync("hidden-default-update");
+        var reviewId = await client.CreatePlaceReviewAsync(
+            secondPlaceId,
+            VisibilityLevel.Public,
+            5,
+            "Created with an active default",
+            TestApiClient.AlternateDefaultCategoryId);
+
+        var updateResponse = await client.HttpClient.PatchAsJsonAsync(
+            $"/place-reviews/{reviewId}",
+            new UpdatePlaceReviewRequest
+            {
+                CategoryId = TestApiClient.DefaultCategoryId,
+                Visibility = VisibilityLevel.Public,
+                Rating = 5,
+                Title = "Still hidden",
+                Body = "Should not become selectable"
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
     }
 
     [Fact]
@@ -203,6 +326,9 @@ public sealed class CategoryFlowTests
         var bobFriendCategoriesAfterDelete = await bobClient.FetchFriendCategoriesAsync();
         Assert.DoesNotContain(bobFriendCategoriesAfterDelete, x => x.Id == streetFood.Id);
 
+        var bobHiddenCategoriesAfterDelete = await bobClient.FetchHiddenCategoriesAsync();
+        Assert.DoesNotContain(bobHiddenCategoriesAfterDelete, x => x.Id == streetFood.Id);
+
         var historicalReview = await bobClient.HttpClient.GetFromJsonAsync<PlaceReviewDto>($"/place-reviews/{bobReviewId}", JsonDefaults.Options);
         Assert.NotNull(historicalReview);
         Assert.Equal(streetFood.Id, historicalReview.CategoryId);
@@ -210,5 +336,24 @@ public sealed class CategoryFlowTests
 
         var adoptDeletedResponse = await bobClient.HttpClient.PostAsync($"/categories/{streetFood.Id}/adopt", content: null);
         Assert.Equal(HttpStatusCode.NotFound, adoptDeletedResponse.StatusCode);
+    }
+
+    private static async Task<(TestApiClient AliceClient, TestApiClient BobClient, Guid AliceUserId, Guid BobUserId)> CreateFriendClientsAsync(
+        TrustMapWebApplicationFactory factory)
+    {
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        var request = await aliceClient.SendFriendRequestAsync(bob.User.Id);
+        var acceptResponse = await bobClient.HttpClient.PostAsync($"/friend-requests/{request.Id}/accept", content: null);
+        acceptResponse.EnsureSuccessStatusCode();
+
+        return (aliceClient, bobClient, alice.User.Id, bob.User.Id);
     }
 }

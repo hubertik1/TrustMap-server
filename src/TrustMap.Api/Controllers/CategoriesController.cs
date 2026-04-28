@@ -136,7 +136,7 @@ internal static class CategoryDtoMapper
             !category.IsDeleted && !category.IsDefault && isOwnedByCurrentUser,
             !category.IsDeleted && membership?.IsVisible == true && (!isOwnedByCurrentUser || category.IsDefault),
             !category.IsDeleted && !category.IsDefault && !isOwnedByCurrentUser && !isVisibleForCurrentUser,
-            !category.IsDeleted && membership?.IsVisible == false,
+            !category.IsDeleted && category.IsDefault && membership?.IsVisible == false,
             category.CreatedAt,
             membership?.AddedAt,
             membership?.HiddenAt);
