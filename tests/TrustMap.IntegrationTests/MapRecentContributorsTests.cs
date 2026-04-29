@@ -56,6 +56,8 @@ public sealed class MapRecentContributorsTests
         Assert.Equal(1, mapPlace.VisibleDishReviewCount);
         Assert.Equal(3.0, mapPlace.AveragePlaceRating);
         Assert.Equal(5, mapPlace.ContributorCount);
+        Assert.Equal(UtcDate(2026, 4, 6), mapPlace.LatestActivityAtUtc);
+        Assert.Contains("Restaurants", mapPlace.CategoryNames);
 
         Assert.Equal(3, mapPlace.RecentContributors.Count);
         Assert.Equal(

@@ -20,7 +20,8 @@ public sealed record MapPlaceDto(
     int VisibleDishReviewCount,
     double? AveragePlaceRating,
     int ContributorCount,
-    DateTime LatestActivityAtUtc)
+    DateTime LatestActivityAtUtc,
+    string SearchText = "")
 {
     public IReadOnlyList<UserSummaryDto> RecentContributors { get; init; } = [];
 }

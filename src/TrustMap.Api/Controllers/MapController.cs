@@ -19,6 +19,9 @@ public sealed class MapController(
     SocialGraphService socialGraphService,
     CategoryMembershipService categoryMembershipService) : ControllerBase
 {
+    private const int MaxSearchTermsPerPlace = 40;
+    private const int MaxSearchTermLength = 280;
+
     [HttpGet("places")]
     [ProducesResponseType<IReadOnlyList<MapPlaceDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<MapPlaceDto>>> GetPlaces(
@@ -231,8 +234,96 @@ public sealed class MapController(
             .Take(take)
             .ToArray();
 
+        var resultPlaceIds = result.Select(x => x.PlaceId).ToList();
+        if (resultPlaceIds.Count > 0)
+        {
+            var placeSearchSeeds = await placeReviewQuery
+                .Where(x => resultPlaceIds.Contains(x.PlaceId))
+                .Select(x => new MapSearchTextSeed(
+                    x.PlaceId,
+                    x.Title,
+                    x.Body,
+                    null,
+                    null))
+                .ToListAsync(cancellationToken);
+
+            var dishSearchSeeds = await dishReviewQuery
+                .Where(x => resultPlaceIds.Contains(x.PlaceId))
+                .Select(x => new MapSearchTextSeed(
+                    x.PlaceId,
+                    null,
+                    null,
+                    x.DishName,
+                    x.Body))
+                .ToListAsync(cancellationToken);
+
+            var searchTextByPlace = BuildSearchTextByPlace(placeSearchSeeds.Concat(dishSearchSeeds));
+            result = result
+                .Select(x => x with { SearchText = searchTextByPlace.GetValueOrDefault(x.PlaceId, "") })
+                .ToArray();
+        }
+
         return Ok(result);
     }
+
+    private static IReadOnlyDictionary<Guid, string> BuildSearchTextByPlace(IEnumerable<MapSearchTextSeed> seeds)
+    {
+        return seeds
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(
+                x => x.Key,
+                x =>
+                {
+                    var terms = new List<string>();
+                    var seenTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var term in x.SelectMany(EnumerateSearchTerms))
+                    {
+                        if (terms.Count >= MaxSearchTermsPerPlace)
+                        {
+                            break;
+                        }
+
+                        var normalizedTerm = NormalizeSearchTerm(term);
+                        if (normalizedTerm is null || !seenTerms.Add(normalizedTerm))
+                        {
+                            continue;
+                        }
+
+                        terms.Add(normalizedTerm);
+                    }
+
+                    return string.Join(" ", terms);
+                });
+    }
+
+    private static IEnumerable<string?> EnumerateSearchTerms(MapSearchTextSeed seed)
+    {
+        yield return seed.PlaceReviewTitle;
+        yield return seed.PlaceReviewBody;
+        yield return seed.DishName;
+        yield return seed.DishReviewBody;
+    }
+
+    private static string? NormalizeSearchTerm(string? term)
+    {
+        var trimmed = term?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        return trimmed.Length <= MaxSearchTermLength
+            ? trimmed
+            : trimmed[..MaxSearchTermLength];
+    }
+
+    private sealed record MapSearchTextSeed(
+        Guid PlaceId,
+        string? PlaceReviewTitle,
+        string? PlaceReviewBody,
+        string? DishName,
+        string? DishReviewBody);
 }
 
 file sealed record MapActivitySeed(

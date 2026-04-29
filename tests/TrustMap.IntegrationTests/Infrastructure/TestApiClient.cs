@@ -111,7 +111,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
         Domain.Enums.VisibilityLevel visibility,
         string dishName,
         int rating,
-        Guid? categoryId = null)
+        Guid? categoryId = null,
+        string? body = null)
     {
         var response = await HttpClient.PostAsJsonAsync(
             "/dish-reviews",
@@ -123,7 +124,7 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 Visibility = visibility,
                 DishName = dishName,
                 Rating = rating,
-                Body = $"Body for {dishName}"
+                Body = body ?? $"Body for {dishName}"
             });
 
         await EnsureSuccessAsync(response);
