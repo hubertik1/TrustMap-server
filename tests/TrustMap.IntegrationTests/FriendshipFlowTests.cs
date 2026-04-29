@@ -86,7 +86,7 @@ public sealed class FriendshipFlowTests
     }
 
     [Fact]
-    public async Task Search_UsesHandleOnly_AndRanksExactBeforePrefixAndContains()
+    public async Task Search_UsesHandle_AndRanksExactBeforePrefixAndContains()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -95,9 +95,9 @@ public sealed class FriendshipFlowTests
         var prefixClient = new TestApiClient(factory.CreateClient());
         var containsClient = new TestApiClient(factory.CreateClient());
 
-        var exact = await searchClient.SignInAsync("alice", "Display Name Only");
-        var prefix = await prefixClient.SignInAsync("alicefriend", "Alice Prefix");
-        var contains = await containsClient.SignInAsync("malice", "Alice Display Name");
+        var exact = await searchClient.SignInAsync("alice", "Exact Person");
+        var prefix = await prefixClient.SignInAsync("alicefriend", "Prefix Person");
+        var contains = await containsClient.SignInAsync("malice", "Contains Person");
 
         searchClient.Authenticate(exact.AccessToken);
 
@@ -105,7 +105,6 @@ public sealed class FriendshipFlowTests
         var baseResults = await searchClient.SearchUsersAsync(exactBase, take: 10);
         var atBaseResults = await searchClient.SearchUsersAsync($"@{exactBase}", take: 10);
         var fullHandleResults = await searchClient.SearchUsersAsync(SpacedHandleQuery(exact.User.Handle), take: 10);
-        var displayNameResults = await searchClient.SearchUsersAsync("Alice Display Name", take: 10);
 
         Assert.Contains(baseResults, x => x.User.Id == exact.User.Id);
         Assert.Contains(baseResults, x => x.User.Id == prefix.User.Id);
@@ -118,7 +117,6 @@ public sealed class FriendshipFlowTests
         Assert.Equal(exact.User.Id, fullHandleResults[0].User.Id);
         Assert.True(IndexOf(baseResults, exact.User.Id) < IndexOf(baseResults, contains.User.Id));
         Assert.True(IndexOf(baseResults, prefix.User.Id) < IndexOf(baseResults, contains.User.Id));
-        Assert.Empty(displayNameResults);
     }
 
     [Fact]

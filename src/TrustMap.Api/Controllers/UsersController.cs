@@ -19,6 +19,8 @@ public sealed class UsersController(
     SocialGraphService socialGraphService,
     ProfileQueryService profileQueryService) : ControllerBase
 {
+    private const string LatinSmallLetterLWithStroke = "\u0142";
+    private const string LatinSmallLetterL = "l";
     private static readonly Regex HandleHashSpacingRegex = new(@"\s*#\s*", RegexOptions.Compiled);
 
     [HttpGet("{id:guid}")]
@@ -42,18 +44,56 @@ public sealed class UsersController(
         }
 
         take = Math.Clamp(take, 1, 50);
-        var normalized = NormalizeSearchQuery(q);
-        if (string.IsNullOrWhiteSpace(normalized))
+        var normalizedHandleQuery = NormalizeHandleSearchQuery(q);
+        var normalizedDisplayQuery = NormalizeDisplaySearchQuery(q);
+        var displayTokens = normalizedDisplayQuery
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var hasHandleQuery = !string.IsNullOrWhiteSpace(normalizedHandleQuery);
+        var hasDisplayQuery = !string.IsNullOrWhiteSpace(normalizedDisplayQuery);
+
+        if (!hasHandleQuery && displayTokens.Length == 0)
         {
             return Ok(Array.Empty<UserSearchResultDto>());
         }
 
         var currentUserId = User.GetRequiredUserId();
+        var baseQuery = dbContext.Users.AsNoTracking();
+        IQueryable<Domain.Entities.User>? matches = null;
 
-        var users = await dbContext.Users
-            .AsNoTracking()
-            .Where(x => x.NormalizedHandle.Contains(normalized))
-            .OrderBy(x => x.NormalizedHandle == normalized ? 0 : x.NormalizedHandle.StartsWith(normalized) ? 1 : 2)
+        if (hasHandleQuery)
+        {
+            matches = baseQuery.Where(x => x.NormalizedHandle.Contains(normalizedHandleQuery));
+        }
+
+        if (displayTokens.Length > 0)
+        {
+            var displayMatches = baseQuery;
+            foreach (var token in displayTokens)
+            {
+                var captured = token;
+                displayMatches = displayMatches.Where(x =>
+                    x.NormalizedDisplayName.Contains(captured)
+                    || x.NormalizedDisplayName.Replace(LatinSmallLetterLWithStroke, LatinSmallLetterL).Contains(captured));
+            }
+
+            matches = matches is null ? displayMatches : matches.Union(displayMatches);
+        }
+
+        var users = await matches!
+            .OrderBy(x =>
+                hasHandleQuery && x.NormalizedHandle == normalizedHandleQuery ? 0 :
+                hasHandleQuery && x.NormalizedHandle.StartsWith(normalizedHandleQuery) ? 1 :
+                hasDisplayQuery
+                    && (x.NormalizedDisplayName == normalizedDisplayQuery
+                        || x.NormalizedDisplayName.Replace(LatinSmallLetterLWithStroke, LatinSmallLetterL) == normalizedDisplayQuery) ? 2 :
+                hasDisplayQuery
+                    && (x.NormalizedDisplayName.StartsWith(normalizedDisplayQuery)
+                        || x.NormalizedDisplayName.Replace(LatinSmallLetterLWithStroke, LatinSmallLetterL).StartsWith(normalizedDisplayQuery)) ? 3 :
+                hasHandleQuery && x.NormalizedHandle.Contains(normalizedHandleQuery) ? 4 :
+                5)
+            .ThenBy(x => x.DisplayName)
             .ThenBy(x => x.Handle)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -70,7 +110,7 @@ public sealed class UsersController(
             .ToArray());
     }
 
-    private static string NormalizeSearchQuery(string query)
+    private static string NormalizeHandleSearchQuery(string query)
     {
         var normalized = TextNormalizer.NormalizeForLookup(query);
         if (normalized.StartsWith("@", StringComparison.Ordinal))
@@ -87,4 +127,8 @@ public sealed class UsersController(
         normalized = HandleHashSpacingRegex.Replace(normalized, "#");
         return TextNormalizer.NormalizeHandle(normalized);
     }
+
+    private static string NormalizeDisplaySearchQuery(string query) =>
+        TextNormalizer.NormalizeForLookup(query)
+            .Replace(LatinSmallLetterLWithStroke, LatinSmallLetterL);
 }
