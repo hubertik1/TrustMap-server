@@ -237,6 +237,15 @@ public sealed class MapController(
         var resultPlaceIds = result.Select(x => x.PlaceId).ToList();
         if (resultPlaceIds.Count > 0)
         {
+            var reviewedPlaceIdsByCurrentUser = await dbContext.PlaceReviews
+                .AsNoTracking()
+                .Where(x => resultPlaceIds.Contains(x.PlaceId))
+                .Where(x => x.AuthorUserId == currentUserId)
+                .Select(x => x.PlaceId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var reviewedPlaceIdSet = reviewedPlaceIdsByCurrentUser.ToHashSet();
+
             var placeSearchSeeds = await placeReviewQuery
                 .Where(x => resultPlaceIds.Contains(x.PlaceId))
                 .Select(x => new MapSearchTextSeed(
@@ -259,7 +268,11 @@ public sealed class MapController(
 
             var searchTextByPlace = BuildSearchTextByPlace(placeSearchSeeds.Concat(dishSearchSeeds));
             result = result
-                .Select(x => x with { SearchText = searchTextByPlace.GetValueOrDefault(x.PlaceId, "") })
+                .Select(x => x with
+                {
+                    IsReviewedByCurrentUser = reviewedPlaceIdSet.Contains(x.PlaceId),
+                    SearchText = searchTextByPlace.GetValueOrDefault(x.PlaceId, "")
+                })
                 .ToArray();
         }
 

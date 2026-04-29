@@ -24,4 +24,6 @@ public sealed record MapPlaceDto(
     string SearchText = "")
 {
     public IReadOnlyList<UserSummaryDto> RecentContributors { get; init; } = [];
+
+    public bool IsReviewedByCurrentUser { get; init; }
 }
