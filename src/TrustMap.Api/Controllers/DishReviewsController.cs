@@ -171,11 +171,54 @@ public sealed class DishReviewsController(
             throw ApiException.Forbidden("You can edit only your own dish reviews.", "dish_review_forbidden");
         }
 
-        review.Update(request.Visibility, request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
-        await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
+        var currentCategoryId = await GetAssignedCategoryIdAsync(currentUserId, review.PlaceId, cancellationToken);
+        var categoryChanged = currentCategoryId != request.CategoryId;
+
+        if (!categoryChanged
+            && !review.HasChanges(
+                request.Visibility,
+                request.DishName,
+                request.Rating,
+                request.Body,
+                request.PriceAmount,
+                request.CurrencyCode))
+        {
+            return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
+        }
+
+        var reviewFieldsChanged = review.Update(request.Visibility, request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
+        if (categoryChanged)
+        {
+            await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
+            if (!reviewFieldsChanged)
+            {
+                review.Touch();
+            }
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var updated = await dbContext.DishReviews
+        return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
+    }
+
+    private async Task<Guid?> GetAssignedCategoryIdAsync(
+        Guid currentUserId,
+        Guid placeId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .Where(x => x.PlaceId == placeId && x.AssignedByUserId == currentUserId)
+            .Select(x => (Guid?)x.CategoryId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<DishReviewDto> LoadReviewDtoAsync(
+        Guid id,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var review = await dbContext.DishReviews
             .AsNoTracking()
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
@@ -184,7 +227,7 @@ public sealed class DishReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == id, cancellationToken);
 
-        return Ok(updated.ToDto(currentUserId));
+        return review.ToDto(currentUserId);
     }
 
     [HttpDelete("{id:guid}")]

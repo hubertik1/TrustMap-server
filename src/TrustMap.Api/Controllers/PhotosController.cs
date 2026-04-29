@@ -36,32 +36,34 @@ public sealed class PhotosController(
         Guid placeId;
         Guid? placeReviewId = null;
         Guid? dishReviewId = null;
+        PlaceReview? placeReview = null;
+        DishReview? dishReview = null;
 
         if (request.PlaceReviewId.HasValue)
         {
-            var review = await dbContext.PlaceReviews.SingleOrDefaultAsync(x => x.Id == request.PlaceReviewId.Value, cancellationToken)
+            placeReview = await dbContext.PlaceReviews.SingleOrDefaultAsync(x => x.Id == request.PlaceReviewId.Value, cancellationToken)
                 ?? throw ApiException.NotFound("Place review not found.", "place_review_not_found");
 
-            if (review.AuthorUserId != currentUserId)
+            if (placeReview.AuthorUserId != currentUserId)
             {
                 throw ApiException.Forbidden("You can upload photos only to your own place review.", "photo_forbidden");
             }
 
-            placeId = review.PlaceId;
-            placeReviewId = review.Id;
+            placeId = placeReview.PlaceId;
+            placeReviewId = placeReview.Id;
         }
         else
         {
-            var review = await dbContext.DishReviews.SingleOrDefaultAsync(x => x.Id == request.DishReviewId!.Value, cancellationToken)
+            dishReview = await dbContext.DishReviews.SingleOrDefaultAsync(x => x.Id == request.DishReviewId!.Value, cancellationToken)
                 ?? throw ApiException.NotFound("Dish review not found.", "dish_review_not_found");
 
-            if (review.AuthorUserId != currentUserId)
+            if (dishReview.AuthorUserId != currentUserId)
             {
                 throw ApiException.Forbidden("You can upload photos only to your own dish review.", "photo_forbidden");
             }
 
-            placeId = review.PlaceId;
-            dishReviewId = review.Id;
+            placeId = dishReview.PlaceId;
+            dishReviewId = dishReview.Id;
         }
 
         await using var stream = request.File.OpenReadStream();
@@ -91,6 +93,8 @@ public sealed class PhotosController(
             storedPhoto.Height);
 
         dbContext.Photos.Add(photo);
+        placeReview?.Touch();
+        dishReview?.Touch();
 
         try
         {
@@ -119,6 +123,17 @@ public sealed class PhotosController(
         }
 
         dbContext.Photos.Remove(photo);
+        if (photo.PlaceReviewId.HasValue)
+        {
+            var review = await dbContext.PlaceReviews.SingleOrDefaultAsync(x => x.Id == photo.PlaceReviewId.Value, cancellationToken);
+            review?.Touch();
+        }
+        else if (photo.DishReviewId.HasValue)
+        {
+            var review = await dbContext.DishReviews.SingleOrDefaultAsync(x => x.Id == photo.DishReviewId.Value, cancellationToken);
+            review?.Touch();
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         try

@@ -50,17 +50,56 @@ public sealed class PlaceReview
 
     public ICollection<Photo> Photos { get; } = new List<Photo>();
 
-    public void Update(VisibilityLevel visibility, int rating, string? title, string? body)
+    public bool HasChanges(VisibilityLevel visibility, int rating, string? title, string? body)
+    {
+        EnsureValidRating(rating);
+
+        return Visibility != visibility
+            || Rating != rating
+            || Title != NormalizeTitle(title)
+            || Body != NormalizeBody(body);
+    }
+
+    public bool Update(VisibilityLevel visibility, int rating, string? title, string? body)
+    {
+        EnsureValidRating(rating);
+
+        var normalizedTitle = NormalizeTitle(title);
+        var normalizedBody = NormalizeBody(body);
+
+        if (Visibility == visibility
+            && Rating == rating
+            && Title == normalizedTitle
+            && Body == normalizedBody)
+        {
+            return false;
+        }
+
+        Visibility = visibility;
+        Rating = rating;
+        Title = normalizedTitle;
+        Body = normalizedBody;
+        UpdatedAt = DateTime.UtcNow;
+
+        return true;
+    }
+
+    public void Touch()
+    {
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static void EnsureValidRating(int rating)
     {
         if (rating is < 1 or > 5)
         {
             throw new InvalidOperationException("Rating must be between 1 and 5.");
         }
-
-        Visibility = visibility;
-        Rating = rating;
-        Title = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
-        Body = string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
-        UpdatedAt = DateTime.UtcNow;
     }
+
+    private static string? NormalizeTitle(string? title) =>
+        string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+
+    private static string NormalizeBody(string? body) =>
+        string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
 }

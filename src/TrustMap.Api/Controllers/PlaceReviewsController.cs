@@ -146,11 +146,47 @@ public sealed class PlaceReviewsController(
             throw ApiException.Forbidden("You can edit only your own place reviews.", "place_review_forbidden");
         }
 
-        review.Update(request.Visibility, request.Rating, request.Title, request.Body);
-        await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
+        var currentCategoryId = await GetAssignedCategoryIdAsync(currentUserId, review.PlaceId, cancellationToken);
+        var categoryChanged = currentCategoryId != request.CategoryId;
+
+        if (!categoryChanged && !review.HasChanges(request.Visibility, request.Rating, request.Title, request.Body))
+        {
+            return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
+        }
+
+        var reviewFieldsChanged = review.Update(request.Visibility, request.Rating, request.Title, request.Body);
+        if (categoryChanged)
+        {
+            await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
+            if (!reviewFieldsChanged)
+            {
+                review.Touch();
+            }
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var updated = await dbContext.PlaceReviews
+        return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
+    }
+
+    private async Task<Guid?> GetAssignedCategoryIdAsync(
+        Guid currentUserId,
+        Guid placeId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .Where(x => x.PlaceId == placeId && x.AssignedByUserId == currentUserId)
+            .Select(x => (Guid?)x.CategoryId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<PlaceReviewDto> LoadReviewDtoAsync(
+        Guid id,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var review = await dbContext.PlaceReviews
             .AsNoTracking()
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
@@ -159,7 +195,7 @@ public sealed class PlaceReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == id, cancellationToken);
 
-        return Ok(updated.ToDto(currentUserId));
+        return review.ToDto(currentUserId);
     }
 
     [HttpDelete("{id:guid}")]

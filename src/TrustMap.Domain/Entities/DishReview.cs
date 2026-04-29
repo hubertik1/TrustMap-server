@@ -60,7 +60,7 @@ public sealed class DishReview
 
     public ICollection<Photo> Photos { get; } = new List<Photo>();
 
-    public void Update(
+    public bool HasChanges(
         VisibilityLevel visibility,
         string dishName,
         int rating,
@@ -68,22 +68,79 @@ public sealed class DishReview
         decimal? priceAmount,
         string? currencyCode)
     {
+        EnsureValidDishName(dishName);
+        EnsureValidRating(rating);
+
+        return Visibility != visibility
+            || DishName != NormalizeDishName(dishName)
+            || Rating != rating
+            || Body != NormalizeBody(body)
+            || PriceAmount != priceAmount
+            || CurrencyCode != NormalizeCurrencyCode(currencyCode);
+    }
+
+    public bool Update(
+        VisibilityLevel visibility,
+        string dishName,
+        int rating,
+        string? body,
+        decimal? priceAmount,
+        string? currencyCode)
+    {
+        EnsureValidDishName(dishName);
+        EnsureValidRating(rating);
+
+        var normalizedDishName = NormalizeDishName(dishName);
+        var normalizedBody = NormalizeBody(body);
+        var normalizedCurrencyCode = NormalizeCurrencyCode(currencyCode);
+
+        if (Visibility == visibility
+            && DishName == normalizedDishName
+            && Rating == rating
+            && Body == normalizedBody
+            && PriceAmount == priceAmount
+            && CurrencyCode == normalizedCurrencyCode)
+        {
+            return false;
+        }
+
+        Visibility = visibility;
+        DishName = normalizedDishName;
+        Rating = rating;
+        Body = normalizedBody;
+        PriceAmount = priceAmount;
+        CurrencyCode = normalizedCurrencyCode;
+        UpdatedAt = DateTime.UtcNow;
+
+        return true;
+    }
+
+    public void Touch()
+    {
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static void EnsureValidDishName(string dishName)
+    {
         if (string.IsNullOrWhiteSpace(dishName))
         {
             throw new InvalidOperationException("Dish name cannot be empty.");
         }
+    }
 
+    private static void EnsureValidRating(int rating)
+    {
         if (rating is < 1 or > 5)
         {
             throw new InvalidOperationException("Rating must be between 1 and 5.");
         }
-
-        Visibility = visibility;
-        DishName = dishName.Trim();
-        Rating = rating;
-        Body = string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
-        PriceAmount = priceAmount;
-        CurrencyCode = string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode.Trim().ToUpperInvariant();
-        UpdatedAt = DateTime.UtcNow;
     }
+
+    private static string NormalizeDishName(string dishName) => dishName.Trim();
+
+    private static string NormalizeBody(string? body) =>
+        string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
+
+    private static string? NormalizeCurrencyCode(string? currencyCode) =>
+        string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode.Trim().ToUpperInvariant();
 }
