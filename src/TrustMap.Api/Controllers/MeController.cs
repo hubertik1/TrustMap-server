@@ -54,6 +54,23 @@ public sealed class MeController(
         return PatchInternal(jsonRequest, request.AvatarAction, request.Avatar, cancellationToken);
     }
 
+    [HttpPatch("privacy")]
+    [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<UserProfileDto>> PatchPrivacy(
+        [FromBody] UpdateMePrivacyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
+            ?? throw ApiException.NotFound("User not found.", "user_not_found");
+
+        user.SetFriendsVisibleToOthers(request.FriendsVisibleToOthers);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
+        return Ok(profile);
+    }
+
     private async Task<ActionResult<UserProfileDto>> PatchInternal(
         UpdateMeRequest request,
         AvatarUpdateAction avatarAction,

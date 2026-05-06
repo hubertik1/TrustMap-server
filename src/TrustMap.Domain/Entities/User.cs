@@ -34,6 +34,8 @@ public sealed class User
 
     public string? Email { get; private set; }
 
+    public bool FriendsVisibleToOthers { get; private set; } = true;
+
     public UserAccountStatus Status { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
@@ -80,6 +82,12 @@ public sealed class User
     public void UpdateEmail(string? email)
     {
         Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetFriendsVisibleToOthers(bool value)
+    {
+        FriendsVisibleToOthers = value;
         UpdatedAt = DateTime.UtcNow;
     }
 

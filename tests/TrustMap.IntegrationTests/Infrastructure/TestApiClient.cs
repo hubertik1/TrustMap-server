@@ -228,6 +228,26 @@ internal sealed class TestApiClient(HttpClient httpClient)
         return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
     }
 
+    public async Task<UserProfileDto> UpdateMePrivacyAsync(bool friendsVisibleToOthers)
+    {
+        var response = await HttpClient.PatchAsJsonAsync(
+            "/me/privacy",
+            new UpdateMePrivacyRequest
+            {
+                FriendsVisibleToOthers = friendsVisibleToOthers
+            });
+
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<IReadOnlyList<UserFriendDto>> FetchUserFriendsAsync(Guid userId)
+    {
+        var response = await HttpClient.GetAsync($"/users/{userId}/friends");
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<UserFriendDto>>(JsonDefaults.Options))!;
+    }
+
     public async Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string query, int take = 20)
     {
         var response = await HttpClient.GetAsync(

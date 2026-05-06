@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using TrustMap.Api.Common;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Users;
 using TrustMap.IntegrationTests.Infrastructure;
@@ -156,6 +157,113 @@ public sealed class FriendshipFlowTests
     }
 
     [Fact]
+    public async Task FetchUserFriends_ReturnsAcceptedFriendsWithViewerRelationshipStatuses()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+        var charlieClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+        var charlie = await charlieClient.SignInAsync("charlie", "Charlie");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+        charlieClient.Authenticate(charlie.AccessToken);
+
+        await MakeFriendsAsync(aliceClient, bobClient, bob.User.Id);
+        await MakeFriendsAsync(aliceClient, charlieClient, charlie.User.Id);
+        _ = await charlieClient.SendFriendRequestAsync(bob.User.Id);
+
+        var aliceFriends = await charlieClient.FetchUserFriendsAsync(alice.User.Id);
+
+        Assert.Equal(2, aliceFriends.Count);
+        Assert.Contains(aliceFriends, x => x.User.Id == bob.User.Id && x.RelationshipStatus == RelationshipStatus.OutgoingRequest);
+        Assert.Contains(aliceFriends, x => x.User.Id == charlie.User.Id && x.RelationshipStatus == RelationshipStatus.Self);
+    }
+
+    [Fact]
+    public async Task FetchUserFriends_PrivateListAsOtherUser_ReturnsForbidden()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
+        Assert.False(updated.FriendsVisibleToOthers);
+        Assert.True(updated.CanViewFriends);
+
+        var response = await bobClient.HttpClient.GetAsync($"/users/{alice.User.Id}/friends");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task FetchUserFriends_PrivateOwnList_StillWorks()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        await MakeFriendsAsync(aliceClient, bobClient, bob.User.Id);
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
+
+        var aliceFriends = await aliceClient.FetchUserFriendsAsync(alice.User.Id);
+
+        Assert.False(updated.FriendsVisibleToOthers);
+        Assert.True(updated.CanViewFriends);
+        Assert.Single(aliceFriends);
+        Assert.Equal(bob.User.Id, aliceFriends[0].User.Id);
+        Assert.Equal(RelationshipStatus.Friends, aliceFriends[0].RelationshipStatus);
+    }
+
+    [Fact]
+    public async Task PatchMePrivacy_UpdatesProfileAndViewerPermission()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+
+        var alice = await aliceClient.SignInAsync("alice", "Alice");
+        var bob = await bobClient.SignInAsync("bob", "Bob");
+
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
+        var aliceViewedByBob = await bobClient.HttpClient.GetFromJsonAsync<UserProfileDto>(
+            $"/users/{alice.User.Id}",
+            JsonDefaults.Options);
+
+        Assert.False(updated.FriendsVisibleToOthers);
+        Assert.True(updated.CanViewFriends);
+        Assert.NotNull(aliceViewedByBob);
+        Assert.False(aliceViewedByBob!.FriendsVisibleToOthers);
+        Assert.False(aliceViewedByBob.CanViewFriends);
+    }
+
+    [Fact]
     public async Task PendingRequest_SurvivesHandleChange()
     {
         await using var factory = new TrustMapWebApplicationFactory();
@@ -202,4 +310,14 @@ public sealed class FriendshipFlowTests
             .Select((item, index) => new { item.User.Id, Index = index })
             .Single(x => x.Id == userId)
             .Index;
+
+    private static async Task MakeFriendsAsync(
+        TestApiClient senderClient,
+        TestApiClient receiverClient,
+        Guid receiverUserId)
+    {
+        var request = await senderClient.SendFriendRequestAsync(receiverUserId);
+        var response = await receiverClient.HttpClient.PostAsync($"/friend-requests/{request.Id}/accept", content: null);
+        response.EnsureSuccessStatusCode();
+    }
 }

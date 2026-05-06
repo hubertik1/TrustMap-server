@@ -17,7 +17,8 @@ public static class DtoMapper
         int friendCount,
         int visiblePlaceReviewCount,
         int visibleDishReviewCount,
-        bool isMe) =>
+        bool isMe,
+        bool canViewFriends) =>
         new(
             user.Id,
             user.Handle,
@@ -28,7 +29,9 @@ public static class DtoMapper
             friendCount,
             visiblePlaceReviewCount,
             visibleDishReviewCount,
-            isMe);
+            isMe,
+            user.FriendsVisibleToOthers,
+            canViewFriends);
 
     public static PlaceSummaryDto ToSummaryDto(this Place place, Guid currentUserId) =>
         place.ToSummaryDto([], currentUserId);

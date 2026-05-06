@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
+using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Common;
@@ -29,6 +30,58 @@ public sealed class UsersController(
     {
         var currentUserId = User.GetRequiredUserId();
         return profileQueryService.GetProfileAsync(currentUserId, id, cancellationToken);
+    }
+
+    [HttpGet("{id:guid}/friends")]
+    [ProducesResponseType<IReadOnlyList<UserFriendDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UserFriendDto>>> GetUserFriends(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var targetUser = await dbContext.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw ApiException.NotFound("User not found.", "user_not_found");
+
+        if (currentUserId != id && !targetUser.FriendsVisibleToOthers)
+        {
+            throw ApiException.Forbidden("This user keeps their friend list private.", "friend_list_private");
+        }
+
+        var friendships = await dbContext.Friendships
+            .AsNoTracking()
+            .Where(x => x.UserAId == id || x.UserBId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var friendIds = friendships
+            .Select(x => x.UserAId == id ? x.UserBId : x.UserAId)
+            .Distinct()
+            .ToList();
+
+        var users = await dbContext.Users
+            .AsNoTracking()
+            .Where(x => friendIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        var relationshipStatuses = await socialGraphService.GetRelationshipStatusesAsync(
+            currentUserId,
+            friendIds,
+            cancellationToken);
+
+        var result = friendships
+            .Select(x =>
+            {
+                var friendId = x.UserAId == id ? x.UserBId : x.UserAId;
+                return new UserFriendDto(
+                    users[friendId].ToSummaryDto(),
+                    x.CreatedAt,
+                    relationshipStatuses.GetValueOrDefault(friendId, RelationshipStatus.None));
+            })
+            .ToArray();
+
+        return Ok(result);
     }
 
     [HttpGet("search")]

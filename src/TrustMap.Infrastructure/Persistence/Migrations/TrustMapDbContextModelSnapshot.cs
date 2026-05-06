@@ -781,6 +781,11 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("FriendsVisibleToOthers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Handle")
                         .IsRequired()
                         .HasMaxLength(32)

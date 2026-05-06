@@ -20,7 +20,9 @@ public sealed record UserProfileDto(
     int FriendCount,
     int VisiblePlaceReviewCount,
     int VisibleDishReviewCount,
-    bool IsMe);
+    bool IsMe,
+    bool FriendsVisibleToOthers,
+    bool CanViewFriends);
 
 public sealed record UserSearchResultDto(
     UserSummaryDto User,
@@ -41,6 +43,11 @@ public sealed class UpdateMeRequest
 
     [StringLength(500)]
     public string? AvatarUrl { get; init; }
+}
+
+public sealed class UpdateMePrivacyRequest
+{
+    public bool FriendsVisibleToOthers { get; init; }
 }
 
 public enum AvatarUpdateAction

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TrustMap.Api.Common;
 using TrustMap.Api.Features.Users;
 using TrustMap.Domain.Enums;
 
@@ -20,3 +21,8 @@ public sealed record FriendRequestDto(
 public sealed record FriendDto(
     UserSummaryDto User,
     DateTime FriendsSinceUtc);
+
+public sealed record UserFriendDto(
+    UserSummaryDto User,
+    DateTime FriendsSinceUtc,
+    RelationshipStatus RelationshipStatus);

@@ -42,6 +42,7 @@ public sealed class ProfileQueryService(
             friendCount,
             visiblePlaceReviewCount,
             visibleDishReviewCount,
-            isMe: viewerUserId == targetUserId);
+            isMe: viewerUserId == targetUserId,
+            canViewFriends: viewerUserId == targetUserId || user.FriendsVisibleToOthers);
     }
 }
