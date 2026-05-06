@@ -15,7 +15,8 @@ namespace TrustMap.Api.Controllers;
 [Authorize]
 [Route("friend-requests")]
 public sealed class FriendRequestsController(
-    TrustMapDbContext dbContext) : ControllerBase
+    TrustMapDbContext dbContext,
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<FriendRequestDto>(StatusCodes.Status201Created)]
@@ -59,10 +60,14 @@ public sealed class FriendRequestsController(
         var friendRequest = new FriendRequest(Guid.CreateVersion7(), currentUserId, request.ReceiverUserId);
         dbContext.FriendRequests.Add(friendRequest);
         await dbContext.SaveChangesAsync(cancellationToken);
+        var accessMap = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            [sender.Id, receiver.Id],
+            cancellationToken);
 
         return Created(
             $"/friend-requests/{friendRequest.Id}",
-            new FriendRequestDto(friendRequest.Id, friendRequest.Status, friendRequest.CreatedAt, sender.ToSummaryDto(), receiver.ToSummaryDto()));
+            ToDto(friendRequest.Id, friendRequest.Status, friendRequest.CreatedAt, sender, receiver, accessMap));
     }
 
     [HttpGet("incoming")]
@@ -78,7 +83,12 @@ public sealed class FriendRequestsController(
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return Ok(requests.Select(ToDto).ToArray());
+        var accessMap = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            requests.SelectMany(x => new[] { x.SenderUserId, x.ReceiverUserId }).ToArray(),
+            cancellationToken);
+
+        return Ok(requests.Select(x => ToDto(x, accessMap)).ToArray());
     }
 
     [HttpGet("outgoing")]
@@ -94,7 +104,12 @@ public sealed class FriendRequestsController(
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return Ok(requests.Select(ToDto).ToArray());
+        var accessMap = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            requests.SelectMany(x => new[] { x.SenderUserId, x.ReceiverUserId }).ToArray(),
+            cancellationToken);
+
+        return Ok(requests.Select(x => ToDto(x, accessMap)).ToArray());
     }
 
     [HttpPost("{id:guid}/accept")]
@@ -130,7 +145,10 @@ public sealed class FriendRequestsController(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var otherUser = request.SenderUserId == currentUserId ? request.ReceiverUser : request.SenderUser;
-        return Ok(new FriendDto(otherUser.ToSummaryDto(), friendship.CreatedAt));
+        var accessMap = await privacyAccessService.GetAccessMapAsync(currentUserId, [otherUser.Id], cancellationToken);
+        return Ok(new FriendDto(
+            otherUser.ToSummaryDto(accessMap[otherUser.Id].CanAccess(otherUser.ProfilePictureVisibility)),
+            friendship.CreatedAt));
     }
 
     [HttpPost("{id:guid}/reject")]
@@ -151,7 +169,7 @@ public sealed class FriendRequestsController(
 
         request.Reject();
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(ToDto(request));
+        return Ok(await ToDtoAsync(currentUserId, request, cancellationToken));
     }
 
     [HttpPost("{id:guid}/cancel")]
@@ -172,14 +190,38 @@ public sealed class FriendRequestsController(
 
         request.Cancel();
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(ToDto(request));
+        return Ok(await ToDtoAsync(currentUserId, request, cancellationToken));
     }
 
-    private static FriendRequestDto ToDto(FriendRequest request) =>
+    private async Task<FriendRequestDto> ToDtoAsync(
+        Guid viewerUserId,
+        FriendRequest request,
+        CancellationToken cancellationToken)
+    {
+        var accessMap = await privacyAccessService.GetAccessMapAsync(
+            viewerUserId,
+            [request.SenderUserId, request.ReceiverUserId],
+            cancellationToken);
+
+        return ToDto(request, accessMap);
+    }
+
+    private static FriendRequestDto ToDto(
+        FriendRequest request,
+        IReadOnlyDictionary<Guid, ViewerAccess> accessMap) =>
+        ToDto(request.Id, request.Status, request.CreatedAt, request.SenderUser, request.ReceiverUser, accessMap);
+
+    private static FriendRequestDto ToDto(
+        Guid requestId,
+        FriendRequestStatus status,
+        DateTime createdAt,
+        Domain.Entities.User sender,
+        Domain.Entities.User receiver,
+        IReadOnlyDictionary<Guid, ViewerAccess> accessMap) =>
         new(
-            request.Id,
-            request.Status,
-            request.CreatedAt,
-            request.SenderUser.ToSummaryDto(),
-            request.ReceiverUser.ToSummaryDto());
+            requestId,
+            status,
+            createdAt,
+            sender.ToSummaryDto(accessMap.GetValueOrDefault(sender.Id)?.CanAccess(sender.ProfilePictureVisibility) ?? false),
+            receiver.ToSummaryDto(accessMap.GetValueOrDefault(receiver.Id)?.CanAccess(receiver.ProfilePictureVisibility) ?? false));
 }

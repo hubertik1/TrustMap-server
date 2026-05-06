@@ -16,7 +16,7 @@ namespace TrustMap.Api.Controllers;
 [Route("dish-reviews")]
 public sealed class DishReviewsController(
     TrustMapDbContext dbContext,
-    SocialGraphService socialGraphService,
+    PrivacyAccessService privacyAccessService,
     CategoryAssignmentService categoryAssignmentService,
     IPhotoStorage photoStorage,
     ILogger<DishReviewsController> logger) : ControllerBase
@@ -31,7 +31,7 @@ public sealed class DishReviewsController(
         CancellationToken cancellationToken = default)
     {
         var currentUserId = User.GetRequiredUserId();
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
         take = Math.Clamp(take, 1, 100);
 
         var query = dbContext.DishReviews
@@ -41,7 +41,7 @@ public sealed class DishReviewsController(
                 .ThenInclude(x => x.CategoryAssignments)
                 .ThenInclude(x => x.Category)
             .Include(x => x.Photos)
-            .VisibleToViewer(currentUserId, friendIds);
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds);
 
         if (placeId.HasValue)
         {
@@ -63,7 +63,16 @@ public sealed class DishReviewsController(
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return Ok(reviews.Select(x => x.ToDto(currentUserId)).ToArray());
+        var authorAccess = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            reviews.Select(x => x.AuthorUserId).ToArray(),
+            cancellationToken);
+
+        return Ok(reviews
+            .Select(x => x.ToDto(
+                currentUserId,
+                authorAccess.GetValueOrDefault(x.AuthorUserId)?.CanAccess(x.AuthorUser.ProfilePictureVisibility) ?? false))
+            .ToArray());
     }
 
     [HttpGet("{id:guid}")]
@@ -71,7 +80,7 @@ public sealed class DishReviewsController(
     public async Task<ActionResult<DishReviewDto>> GetReview(Guid id, CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
 
         var review = await dbContext.DishReviews
             .AsNoTracking()
@@ -80,11 +89,14 @@ public sealed class DishReviewsController(
                 .ThenInclude(x => x.CategoryAssignments)
                 .ThenInclude(x => x.Category)
             .Include(x => x.Photos)
-            .VisibleToViewer(currentUserId, friendIds)
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("Dish review not found.", "dish_review_not_found");
 
-        return Ok(review.ToDto(currentUserId));
+        var authorAccess = await privacyAccessService.GetAccessMapAsync(currentUserId, [review.AuthorUserId], cancellationToken);
+        return Ok(review.ToDto(
+            currentUserId,
+            authorAccess[review.AuthorUserId].CanAccess(review.AuthorUser.ProfilePictureVisibility)));
     }
 
     [HttpPost]
@@ -147,7 +159,7 @@ public sealed class DishReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == review.Id, cancellationToken);
 
-        return Created($"/dish-reviews/{review.Id}", created.ToDto(currentUserId));
+        return Created($"/dish-reviews/{review.Id}", created.ToDto(currentUserId, canViewAuthorProfilePicture: true));
     }
 
     [HttpPatch("{id:guid}")]
@@ -227,7 +239,7 @@ public sealed class DishReviewsController(
             .Include(x => x.Photos)
             .SingleAsync(x => x.Id == id, cancellationToken);
 
-        return review.ToDto(currentUserId);
+        return review.ToDto(currentUserId, canViewAuthorProfilePicture: true);
     }
 
     [HttpDelete("{id:guid}")]

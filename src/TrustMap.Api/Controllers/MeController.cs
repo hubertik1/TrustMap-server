@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
 
@@ -55,20 +56,90 @@ public sealed class MeController(
     }
 
     [HttpPatch("privacy")]
+    [Consumes("application/json")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<UserProfileDto>> PatchPrivacy(
         [FromBody] UpdateMePrivacyRequest request,
         CancellationToken cancellationToken)
     {
+        EnsureValidPrivacyRequest(request);
+
         var currentUserId = User.GetRequiredUserId();
         var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
             ?? throw ApiException.NotFound("User not found.", "user_not_found");
 
-        user.SetFriendsVisibleToOthers(request.FriendsVisibleToOthers);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var previousReviewVisibility = user.ReviewVisibility;
+        user.UpdatePrivacySettings(
+            request.ReviewVisibility,
+            request.FriendListVisibility,
+            request.ProfileVisibility,
+            request.ProfilePictureVisibility);
+
+        if (previousReviewVisibility != request.ReviewVisibility)
+        {
+            var placeReviews = await dbContext.PlaceReviews
+                .Where(x => x.AuthorUserId == currentUserId && x.Visibility != VisibilityLevel.Private)
+                .ToListAsync(cancellationToken);
+
+            foreach (var review in placeReviews)
+            {
+                review.Update(request.ReviewVisibility, review.Rating, review.Title, review.Body);
+            }
+
+            var dishReviews = await dbContext.DishReviews
+                .Where(x => x.AuthorUserId == currentUserId && x.Visibility != VisibilityLevel.Private)
+                .ToListAsync(cancellationToken);
+
+            foreach (var review in dishReviews)
+            {
+                review.Update(
+                    request.ReviewVisibility,
+                    review.DishName,
+                    review.Rating,
+                    review.Body,
+                    review.PriceAmount,
+                    review.CurrencyCode);
+            }
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
         return Ok(profile);
+    }
+
+    private static void EnsureValidPrivacyRequest(UpdateMePrivacyRequest request)
+    {
+        EnsureDefinedVisibility(request.ReviewVisibility, "Review visibility");
+        EnsureDefinedVisibility(request.FriendListVisibility, "Friend list visibility");
+        EnsureDefinedVisibility(request.ProfileVisibility, "Profile visibility");
+        EnsureDefinedVisibility(request.ProfilePictureVisibility, "Profile picture visibility");
+
+        if (request.ReviewVisibility == VisibilityLevel.Private)
+        {
+            throw ApiException.BadRequest("Review visibility cannot be private.", "review_visibility_private");
+        }
+
+        if (request.ProfileVisibility == VisibilityLevel.Private)
+        {
+            throw ApiException.BadRequest("Profile visibility cannot be private.", "profile_visibility_private");
+        }
+
+        if (request.ProfilePictureVisibility == VisibilityLevel.Private)
+        {
+            throw ApiException.BadRequest("Profile picture visibility cannot be private.", "profile_picture_visibility_private");
+        }
+    }
+
+    private static void EnsureDefinedVisibility(VisibilityLevel visibility, string displayName)
+    {
+        if (!Enum.IsDefined(visibility))
+        {
+            throw ApiException.BadRequest($"{displayName} is invalid.", "invalid_visibility");
+        }
     }
 
     private async Task<ActionResult<UserProfileDto>> PatchInternal(

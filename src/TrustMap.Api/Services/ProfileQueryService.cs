@@ -8,7 +8,8 @@ namespace TrustMap.Api.Services;
 
 public sealed class ProfileQueryService(
     TrustMapDbContext dbContext,
-    SocialGraphService socialGraphService)
+    SocialGraphService socialGraphService,
+    PrivacyAccessService privacyAccessService)
 {
     public async Task<UserProfileDto> GetProfileAsync(
         Guid viewerUserId,
@@ -24,18 +25,30 @@ public sealed class ProfileQueryService(
             ? RelationshipStatus.Self
             : await socialGraphService.GetRelationshipStatusAsync(viewerUserId, targetUserId, cancellationToken);
 
-        var friendIds = await socialGraphService.GetFriendIdsAsync(viewerUserId, cancellationToken);
-        var friendCount = await socialGraphService.GetFriendCountAsync(targetUserId, cancellationToken);
+        var accessMap = await privacyAccessService.GetAccessMapAsync(viewerUserId, [targetUserId], cancellationToken);
+        var access = accessMap[targetUserId];
+        var canViewProfile = access.CanAccess(user.ProfileVisibility);
+        var canViewFriends = canViewProfile && access.CanAccess(user.FriendListVisibility);
+        var canViewProfilePicture = access.CanAccess(user.ProfilePictureVisibility);
 
-        var visiblePlaceReviewCount = await dbContext.PlaceReviews
-            .AsNoTracking()
-            .VisibleToViewer(viewerUserId, friendIds)
-            .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(viewerUserId, cancellationToken);
+        var friendCount = canViewProfile && canViewFriends
+            ? await socialGraphService.GetFriendCountAsync(targetUserId, cancellationToken)
+            : 0;
 
-        var visibleDishReviewCount = await dbContext.DishReviews
-            .AsNoTracking()
-            .VisibleToViewer(viewerUserId, friendIds)
-            .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken);
+        var visiblePlaceReviewCount = canViewProfile
+            ? await dbContext.PlaceReviews
+                .AsNoTracking()
+                .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
+                .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken)
+            : 0;
+
+        var visibleDishReviewCount = canViewProfile
+            ? await dbContext.DishReviews
+                .AsNoTracking()
+                .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
+                .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken)
+            : 0;
 
         return user.ToProfileDto(
             relationshipStatus,
@@ -43,6 +56,8 @@ public sealed class ProfileQueryService(
             visiblePlaceReviewCount,
             visibleDishReviewCount,
             isMe: viewerUserId == targetUserId,
-            canViewFriends: viewerUserId == targetUserId || user.FriendsVisibleToOthers);
+            canViewProfile,
+            canViewFriends,
+            canViewProfilePicture);
     }
 }

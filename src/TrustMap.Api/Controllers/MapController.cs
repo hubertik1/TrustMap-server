@@ -16,7 +16,7 @@ namespace TrustMap.Api.Controllers;
 [Route("map")]
 public sealed class MapController(
     TrustMapDbContext dbContext,
-    SocialGraphService socialGraphService,
+    PrivacyAccessService privacyAccessService,
     CategoryMembershipService categoryMembershipService) : ControllerBase
 {
     private const int MaxSearchTermsPerPlace = 40;
@@ -40,7 +40,8 @@ public sealed class MapController(
         }
 
         var currentUserId = User.GetRequiredUserId();
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+        var friendIds = socialAccess.FriendIds;
         var visibleUserIds = friendIds.Append(currentUserId).ToHashSet();
         take = Math.Clamp(take, 1, 500);
 
@@ -51,11 +52,11 @@ public sealed class MapController(
 
         var placeReviewQuery = dbContext.PlaceReviews
             .AsNoTracking()
-            .VisibleInSocialScope(currentUserId, friendIds);
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds);
 
         var dishReviewQuery = dbContext.DishReviews
             .AsNoTracking()
-            .VisibleInSocialScope(currentUserId, friendIds);
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds);
 
         if (hasBounds)
         {
@@ -89,7 +90,8 @@ public sealed class MapController(
                 x.Place.CreatedByUserId,
                 x.AuthorUser.Handle,
                 x.AuthorUser.DisplayName,
-                x.AuthorUser.AvatarUrl))
+                x.AuthorUser.AvatarUrl,
+                x.AuthorUser.ProfilePictureVisibility))
             .ToListAsync(cancellationToken);
 
         var dishReviews = await dishReviewQuery
@@ -109,7 +111,8 @@ public sealed class MapController(
                 x.Place.CreatedByUserId,
                 x.AuthorUser.Handle,
                 x.AuthorUser.DisplayName,
-                x.AuthorUser.AvatarUrl))
+                x.AuthorUser.AvatarUrl,
+                x.AuthorUser.ProfilePictureVisibility))
             .ToListAsync(cancellationToken);
 
         var categoryAssignmentsQuery = dbContext.PlaceCategoryAssignments
@@ -175,6 +178,11 @@ public sealed class MapController(
             .GroupBy(x => x.PlaceId)
             .ToDictionary(x => x.Key, x => x.Count());
 
+        var contributorAccess = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            placeReviews.Select(x => x.AuthorUserId).Concat(dishReviews.Select(x => x.AuthorUserId)).ToArray(),
+            cancellationToken);
+
         var recentContributorsByPlace = placeReviews
             .Concat(dishReviews)
             .GroupBy(x => x.PlaceId)
@@ -190,7 +198,9 @@ public sealed class MapController(
                         item.AuthorUserId,
                         item.AuthorHandle,
                         item.AuthorDisplayName,
-                        item.AuthorAvatarUrl))
+                        contributorAccess.GetValueOrDefault(item.AuthorUserId)?.CanAccess(item.AuthorProfilePictureVisibility) == true
+                            ? item.AuthorAvatarUrl
+                            : null))
                     .ToArray());
 
         var categoryNamesByPlace = categoryAssignments
@@ -355,7 +365,8 @@ file sealed record MapActivitySeed(
     Guid? CreatedByUserId,
     string AuthorHandle,
     string AuthorDisplayName,
-    string? AuthorAvatarUrl);
+    string? AuthorAvatarUrl,
+    VisibilityLevel AuthorProfilePictureVisibility);
 
 file sealed record MapCategorySeed(
     Guid PlaceId,

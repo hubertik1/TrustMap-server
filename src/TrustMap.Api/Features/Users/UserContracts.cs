@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using TrustMap.Api.Common;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.Api.Features.Users;
 
@@ -21,8 +22,13 @@ public sealed record UserProfileDto(
     int VisiblePlaceReviewCount,
     int VisibleDishReviewCount,
     bool IsMe,
-    bool FriendsVisibleToOthers,
-    bool CanViewFriends);
+    VisibilityLevel ReviewVisibility,
+    VisibilityLevel FriendListVisibility,
+    VisibilityLevel ProfileVisibility,
+    VisibilityLevel ProfilePictureVisibility,
+    bool CanViewProfile,
+    bool CanViewFriends,
+    bool CanViewProfilePicture);
 
 public sealed record UserSearchResultDto(
     UserSummaryDto User,
@@ -47,7 +53,13 @@ public sealed class UpdateMeRequest
 
 public sealed class UpdateMePrivacyRequest
 {
-    public bool FriendsVisibleToOthers { get; init; }
+    public VisibilityLevel ReviewVisibility { get; init; }
+
+    public VisibilityLevel FriendListVisibility { get; init; }
+
+    public VisibilityLevel ProfileVisibility { get; init; }
+
+    public VisibilityLevel ProfilePictureVisibility { get; init; }
 }
 
 public enum AvatarUpdateAction

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.Infrastructure.Persistence.Configurations;
 
@@ -19,7 +20,10 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.Bio).HasMaxLength(500);
         builder.Property(x => x.AvatarUrl).HasMaxLength(500);
         builder.Property(x => x.Email).HasMaxLength(320);
-        builder.Property(x => x.FriendsVisibleToOthers).IsRequired().HasDefaultValue(true);
+        builder.Property(x => x.ReviewVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Friends);
+        builder.Property(x => x.FriendListVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Friends);
+        builder.Property(x => x.ProfileVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Public);
+        builder.Property(x => x.ProfilePictureVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Public);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 

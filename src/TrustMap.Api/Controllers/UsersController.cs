@@ -18,7 +18,8 @@ namespace TrustMap.Api.Controllers;
 public sealed class UsersController(
     TrustMapDbContext dbContext,
     SocialGraphService socialGraphService,
-    ProfileQueryService profileQueryService) : ControllerBase
+    ProfileQueryService profileQueryService,
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     private const string LatinSmallLetterLWithStroke = "\u0142";
     private const string LatinSmallLetterL = "l";
@@ -44,7 +45,9 @@ public sealed class UsersController(
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("User not found.", "user_not_found");
 
-        if (currentUserId != id && !targetUser.FriendsVisibleToOthers)
+        var targetAccess = await privacyAccessService.GetAccessMapAsync(currentUserId, [id], cancellationToken);
+        var access = targetAccess[id];
+        if (!access.CanAccess(targetUser.ProfileVisibility) || !access.CanAccess(targetUser.FriendListVisibility))
         {
             throw ApiException.Forbidden("This user keeps their friend list private.", "friend_list_private");
         }
@@ -70,12 +73,15 @@ public sealed class UsersController(
             friendIds,
             cancellationToken);
 
+        var friendAccess = await privacyAccessService.GetAccessMapAsync(currentUserId, friendIds, cancellationToken);
+
         var result = friendships
             .Select(x =>
             {
                 var friendId = x.UserAId == id ? x.UserBId : x.UserAId;
+                var user = users[friendId];
                 return new UserFriendDto(
-                    users[friendId].ToSummaryDto(),
+                    user.ToSummaryDto(friendAccess.GetValueOrDefault(friendId)?.CanAccess(user.ProfilePictureVisibility) ?? false),
                     x.CreatedAt,
                     relationshipStatuses.GetValueOrDefault(friendId, RelationshipStatus.None));
             })
@@ -155,10 +161,14 @@ public sealed class UsersController(
             currentUserId,
             users.Select(x => x.Id).ToArray(),
             cancellationToken);
+        var accessMap = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            users.Select(x => x.Id).ToArray(),
+            cancellationToken);
 
         return Ok(users
             .Select(x => new UserSearchResultDto(
-                x.ToSummaryDto(),
+                x.ToSummaryDto(accessMap.GetValueOrDefault(x.Id)?.CanAccess(x.ProfilePictureVisibility) ?? false),
                 relationshipStatuses.GetValueOrDefault(x.Id, RelationshipStatus.None)))
             .ToArray());
     }

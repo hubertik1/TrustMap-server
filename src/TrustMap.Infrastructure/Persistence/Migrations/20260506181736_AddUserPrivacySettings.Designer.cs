@@ -11,8 +11,8 @@ using TrustMap.Infrastructure.Persistence;
 namespace TrustMap.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TrustMapDbContext))]
-    [Migration("20260506164906_AddFriendListPrivacy")]
-    partial class AddFriendListPrivacy
+    [Migration("20260506181736_AddUserPrivacySettings")]
+    partial class AddUserPrivacySettings
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -784,10 +784,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("FriendsVisibleToOthers")
+                    b.Property<int>("FriendListVisibility")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
+                        .HasDefaultValue(2);
 
                     b.Property<string>("Handle")
                         .IsRequired()
@@ -803,6 +803,21 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("ProfilePictureVisibility")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(3);
+
+                    b.Property<int>("ProfileVisibility")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(3);
+
+                    b.Property<int>("ReviewVisibility")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(2);
 
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");

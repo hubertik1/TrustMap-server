@@ -14,7 +14,7 @@ namespace TrustMap.Api.Controllers;
 [Route("feed")]
 public sealed class FeedController(
     TrustMapDbContext dbContext,
-    SocialGraphService socialGraphService) : ControllerBase
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<FeedResponseDto>(StatusCodes.Status200OK)]
@@ -24,7 +24,8 @@ public sealed class FeedController(
         CancellationToken cancellationToken = default)
     {
         var currentUserId = User.GetRequiredUserId();
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+        var friendIds = socialAccess.FriendIds;
         take = Math.Clamp(take, 1, 100);
         var cursor = beforeUtc ?? DateTime.MaxValue;
 
@@ -33,7 +34,7 @@ public sealed class FeedController(
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
             .Include(x => x.Photos)
-            .VisibleInSocialScope(currentUserId, friendIds)
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .Where(x => x.UpdatedAt < cursor)
             .OrderByDescending(x => x.UpdatedAt)
             .Take(take + 1)
@@ -44,11 +45,16 @@ public sealed class FeedController(
             .Include(x => x.AuthorUser)
             .Include(x => x.Place)
             .Include(x => x.Photos)
-            .VisibleInSocialScope(currentUserId, friendIds)
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .Where(x => x.UpdatedAt < cursor)
             .OrderByDescending(x => x.UpdatedAt)
             .Take(take + 1)
             .ToListAsync(cancellationToken);
+
+        var authorAccess = await privacyAccessService.GetAccessMapAsync(
+            currentUserId,
+            placeReviews.Select(x => x.AuthorUserId).Concat(dishReviews.Select(x => x.AuthorUserId)).ToArray(),
+            cancellationToken);
 
         var items = placeReviews
             .Select(x => new FeedItemDto(
@@ -57,7 +63,7 @@ public sealed class FeedController(
                 x.Visibility,
                 x.CreatedAt,
                 x.UpdatedAt,
-                x.AuthorUser.ToSummaryDto(),
+                x.AuthorUser.ToSummaryDto(authorAccess.GetValueOrDefault(x.AuthorUserId)?.CanAccess(x.AuthorUser.ProfilePictureVisibility) ?? false),
                 x.Place.ToSummaryDto(currentUserId),
                 x.Rating,
                 x.Body,
@@ -70,7 +76,7 @@ public sealed class FeedController(
                 x.Visibility,
                 x.CreatedAt,
                 x.UpdatedAt,
-                x.AuthorUser.ToSummaryDto(),
+                x.AuthorUser.ToSummaryDto(authorAccess.GetValueOrDefault(x.AuthorUserId)?.CanAccess(x.AuthorUser.ProfilePictureVisibility) ?? false),
                 x.Place.ToSummaryDto(currentUserId),
                 x.Rating,
                 x.Body,

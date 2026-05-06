@@ -7,6 +7,7 @@ using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Reviews;
 using TrustMap.Api.Services;
 using TrustMap.Api.Features.Users;
+using TrustMap.Domain.Enums;
 
 namespace TrustMap.IntegrationTests.Infrastructure;
 
@@ -228,13 +229,20 @@ internal sealed class TestApiClient(HttpClient httpClient)
         return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
     }
 
-    public async Task<UserProfileDto> UpdateMePrivacyAsync(bool friendsVisibleToOthers)
+    public async Task<UserProfileDto> UpdateMePrivacyAsync(
+        VisibilityLevel reviewVisibility = VisibilityLevel.Friends,
+        VisibilityLevel friendListVisibility = VisibilityLevel.Friends,
+        VisibilityLevel profileVisibility = VisibilityLevel.Public,
+        VisibilityLevel profilePictureVisibility = VisibilityLevel.Public)
     {
         var response = await HttpClient.PatchAsJsonAsync(
             "/me/privacy",
             new UpdateMePrivacyRequest
             {
-                FriendsVisibleToOthers = friendsVisibleToOthers
+                ReviewVisibility = reviewVisibility,
+                FriendListVisibility = friendListVisibility,
+                ProfileVisibility = profileVisibility,
+                ProfilePictureVisibility = profilePictureVisibility
             });
 
         await EnsureSuccessAsync(response);

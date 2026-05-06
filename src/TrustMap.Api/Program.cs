@@ -57,6 +57,7 @@ builder.Services.AddScoped<CategoryMembershipService>();
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<SocialGraphService>();
+builder.Services.AddScoped<PrivacyAccessService>();
 builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");

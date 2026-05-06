@@ -12,7 +12,8 @@ namespace TrustMap.Api.Controllers;
 [Authorize]
 [Route("categories")]
 public sealed class CategoriesController(
-    CategoryMembershipService categoryMembershipService) : ControllerBase
+    CategoryMembershipService categoryMembershipService,
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     [HttpGet("my")]
     [ProducesResponseType<IReadOnlyList<CategoryDto>>(StatusCodes.Status200OK)]
@@ -20,7 +21,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var categories = await categoryMembershipService.GetMyCategoriesAsync(currentUserId, cancellationToken);
-        return Ok(categories.Select(x => x.ToDto(currentUserId)).ToArray());
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, categories, cancellationToken);
+        return Ok(categories.Select(x => x.ToDto(currentUserId, accessMap)).ToArray());
     }
 
     [HttpGet("friends")]
@@ -29,7 +31,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var categories = await categoryMembershipService.GetFriendCategoriesAsync(currentUserId, cancellationToken);
-        return Ok(categories.Select(x => x.ToDto(currentUserId)).ToArray());
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, categories, cancellationToken);
+        return Ok(categories.Select(x => x.ToDto(currentUserId, accessMap)).ToArray());
     }
 
     [HttpGet("hidden")]
@@ -38,7 +41,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var categories = await categoryMembershipService.GetHiddenCategoriesAsync(currentUserId, cancellationToken);
-        return Ok(categories.Select(x => x.ToDto(currentUserId)).ToArray());
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, categories, cancellationToken);
+        return Ok(categories.Select(x => x.ToDto(currentUserId, accessMap)).ToArray());
     }
 
     [HttpPost]
@@ -54,7 +58,8 @@ public sealed class CategoriesController(
             request.IconName,
             cancellationToken);
 
-        return Created($"/categories/{category.Category.Id}", category.ToDto(currentUserId));
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, [category], cancellationToken);
+        return Created($"/categories/{category.Category.Id}", category.ToDto(currentUserId, accessMap));
     }
 
     [HttpPost("{id:guid}/adopt")]
@@ -63,7 +68,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var category = await categoryMembershipService.AdoptCategoryAsync(currentUserId, id, cancellationToken);
-        return Ok(category.ToDto(currentUserId));
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, [category], cancellationToken);
+        return Ok(category.ToDto(currentUserId, accessMap));
     }
 
     [HttpPost("{id:guid}/hide")]
@@ -72,7 +78,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var category = await categoryMembershipService.HideCategoryAsync(currentUserId, id, cancellationToken);
-        return Ok(category.ToDto(currentUserId));
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, [category], cancellationToken);
+        return Ok(category.ToDto(currentUserId, accessMap));
     }
 
     [HttpPost("{id:guid}/unhide")]
@@ -81,7 +88,8 @@ public sealed class CategoriesController(
     {
         var currentUserId = User.GetRequiredUserId();
         var category = await categoryMembershipService.UnhideCategoryAsync(currentUserId, id, cancellationToken);
-        return Ok(category.ToDto(currentUserId));
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, [category], cancellationToken);
+        return Ok(category.ToDto(currentUserId, accessMap));
     }
 
     [HttpPatch("{id:guid}")]
@@ -99,7 +107,8 @@ public sealed class CategoriesController(
             request.IconName,
             cancellationToken);
 
-        return Ok(category.ToDto(currentUserId));
+        var accessMap = await BuildOwnerAccessMapAsync(currentUserId, [category], cancellationToken);
+        return Ok(category.ToDto(currentUserId, accessMap));
     }
 
     [HttpDelete("{id:guid}")]
@@ -110,11 +119,27 @@ public sealed class CategoriesController(
         await categoryMembershipService.DeleteCategoryAsync(currentUserId, id, cancellationToken);
         return NoContent();
     }
+
+    private Task<Dictionary<Guid, ViewerAccess>> BuildOwnerAccessMapAsync(
+        Guid currentUserId,
+        IReadOnlyCollection<CategoryMembershipView> categories,
+        CancellationToken cancellationToken)
+    {
+        var ownerIds = categories
+            .Select(x => x.Category.OwnerUserId)
+            .OfType<Guid>()
+            .ToArray();
+
+        return privacyAccessService.GetAccessMapAsync(currentUserId, ownerIds, cancellationToken);
+    }
 }
 
 internal static class CategoryDtoMapper
 {
-    public static CategoryDto ToDto(this CategoryMembershipView view, Guid currentUserId)
+    public static CategoryDto ToDto(
+        this CategoryMembershipView view,
+        Guid currentUserId,
+        IReadOnlyDictionary<Guid, ViewerAccess> ownerAccessMap)
     {
         var category = view.Category;
         var membership = view.Membership;
@@ -128,7 +153,10 @@ internal static class CategoryDtoMapper
             category.OwnerUserId,
             category.IsDefault,
             isOwnedByCurrentUser,
-            category.OwnerUser is null ? null : category.OwnerUser.ToSummaryDto(),
+            category.OwnerUser is null
+                ? null
+                : category.OwnerUser.ToSummaryDto(
+                    ownerAccessMap.GetValueOrDefault(category.OwnerUser.Id)?.CanAccess(category.OwnerUser.ProfilePictureVisibility) ?? false),
             membership?.Source,
             isVisibleForCurrentUser,
             membership?.Source == CategoryMembershipSource.FriendCustomAdded,

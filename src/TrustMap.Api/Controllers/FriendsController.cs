@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Friends;
+using TrustMap.Api.Services;
 using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Api.Controllers;
@@ -11,7 +12,9 @@ namespace TrustMap.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("friends")]
-public sealed class FriendsController(TrustMapDbContext dbContext) : ControllerBase
+public sealed class FriendsController(
+    TrustMapDbContext dbContext,
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<FriendDto>>(StatusCodes.Status200OK)]
@@ -29,12 +32,16 @@ public sealed class FriendsController(TrustMapDbContext dbContext) : ControllerB
             .AsNoTracking()
             .Where(x => friendIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var accessMap = await privacyAccessService.GetAccessMapAsync(currentUserId, friendIds, cancellationToken);
 
         var result = friendships
             .Select(x =>
             {
                 var friendId = x.UserAId == currentUserId ? x.UserBId : x.UserAId;
-                return new FriendDto(users[friendId].ToSummaryDto(), x.CreatedAt);
+                var user = users[friendId];
+                return new FriendDto(
+                    user.ToSummaryDto(accessMap.GetValueOrDefault(friendId)?.CanAccess(user.ProfilePictureVisibility) ?? false),
+                    x.CreatedAt);
             })
             .ToArray();
 

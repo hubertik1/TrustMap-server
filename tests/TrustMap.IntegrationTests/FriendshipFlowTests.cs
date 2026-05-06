@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Users;
+using TrustMap.Domain.Enums;
 using TrustMap.IntegrationTests.Infrastructure;
 
 namespace TrustMap.IntegrationTests;
@@ -200,8 +201,8 @@ public sealed class FriendshipFlowTests
         aliceClient.Authenticate(alice.AccessToken);
         bobClient.Authenticate(bob.AccessToken);
 
-        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
-        Assert.False(updated.FriendsVisibleToOthers);
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendListVisibility: VisibilityLevel.Private);
+        Assert.Equal(VisibilityLevel.Private, updated.FriendListVisibility);
         Assert.True(updated.CanViewFriends);
 
         var response = await bobClient.HttpClient.GetAsync($"/users/{alice.User.Id}/friends");
@@ -225,11 +226,11 @@ public sealed class FriendshipFlowTests
         bobClient.Authenticate(bob.AccessToken);
 
         await MakeFriendsAsync(aliceClient, bobClient, bob.User.Id);
-        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendListVisibility: VisibilityLevel.Private);
 
         var aliceFriends = await aliceClient.FetchUserFriendsAsync(alice.User.Id);
 
-        Assert.False(updated.FriendsVisibleToOthers);
+        Assert.Equal(VisibilityLevel.Private, updated.FriendListVisibility);
         Assert.True(updated.CanViewFriends);
         Assert.Single(aliceFriends);
         Assert.Equal(bob.User.Id, aliceFriends[0].User.Id);
@@ -251,15 +252,15 @@ public sealed class FriendshipFlowTests
         aliceClient.Authenticate(alice.AccessToken);
         bobClient.Authenticate(bob.AccessToken);
 
-        var updated = await aliceClient.UpdateMePrivacyAsync(friendsVisibleToOthers: false);
+        var updated = await aliceClient.UpdateMePrivacyAsync(friendListVisibility: VisibilityLevel.Private);
         var aliceViewedByBob = await bobClient.HttpClient.GetFromJsonAsync<UserProfileDto>(
             $"/users/{alice.User.Id}",
             JsonDefaults.Options);
 
-        Assert.False(updated.FriendsVisibleToOthers);
+        Assert.Equal(VisibilityLevel.Private, updated.FriendListVisibility);
         Assert.True(updated.CanViewFriends);
         Assert.NotNull(aliceViewedByBob);
-        Assert.False(aliceViewedByBob!.FriendsVisibleToOthers);
+        Assert.Equal(VisibilityLevel.Private, aliceViewedByBob!.FriendListVisibility);
         Assert.False(aliceViewedByBob.CanViewFriends);
     }
 

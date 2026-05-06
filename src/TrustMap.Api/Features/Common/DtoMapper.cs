@@ -8,8 +8,8 @@ namespace TrustMap.Api.Features.Common;
 
 public static class DtoMapper
 {
-    public static UserSummaryDto ToSummaryDto(this User user) =>
-        new(user.Id, user.Handle, user.DisplayName, user.AvatarUrl);
+    public static UserSummaryDto ToSummaryDto(this User user, bool canViewProfilePicture) =>
+        new(user.Id, user.Handle, user.DisplayName, canViewProfilePicture ? user.AvatarUrl : null);
 
     public static UserProfileDto ToProfileDto(
         this User user,
@@ -18,20 +18,27 @@ public static class DtoMapper
         int visiblePlaceReviewCount,
         int visibleDishReviewCount,
         bool isMe,
-        bool canViewFriends) =>
+        bool canViewProfile,
+        bool canViewFriends,
+        bool canViewProfilePicture) =>
         new(
             user.Id,
             user.Handle,
             user.DisplayName,
-            user.Bio,
-            user.AvatarUrl,
+            canViewProfile ? user.Bio : null,
+            canViewProfilePicture ? user.AvatarUrl : null,
             relationshipStatus,
-            friendCount,
-            visiblePlaceReviewCount,
-            visibleDishReviewCount,
+            canViewProfile && canViewFriends ? friendCount : 0,
+            canViewProfile ? visiblePlaceReviewCount : 0,
+            canViewProfile ? visibleDishReviewCount : 0,
             isMe,
-            user.FriendsVisibleToOthers,
-            canViewFriends);
+            user.ReviewVisibility,
+            user.FriendListVisibility,
+            user.ProfileVisibility,
+            user.ProfilePictureVisibility,
+            canViewProfile,
+            canViewProfile && canViewFriends,
+            canViewProfilePicture);
 
     public static PlaceSummaryDto ToSummaryDto(this Place place, Guid currentUserId) =>
         place.ToSummaryDto([], currentUserId);
@@ -67,15 +74,17 @@ public static class DtoMapper
             photo.ThumbnailUrl,
             photo.CreatedAt);
 
-    public static PlaceReviewDto ToDto(this PlaceReview review, Guid currentUserId) =>
+    public static PlaceReviewDto ToDto(this PlaceReview review, Guid currentUserId, bool canViewAuthorProfilePicture) =>
         review.ToDto(
             currentUserId,
+            canViewAuthorProfilePicture,
             review.Place.CategoryAssignments
                 .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
 
     public static PlaceReviewDto ToDto(
         this PlaceReview review,
         Guid currentUserId,
+        bool canViewAuthorProfilePicture,
         PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
@@ -88,21 +97,23 @@ public static class DtoMapper
             review.Body,
             review.CreatedAt,
             review.UpdatedAt,
-            review.AuthorUser.ToSummaryDto(),
+            review.AuthorUser.ToSummaryDto(canViewAuthorProfilePicture),
             review.Place.ToSummaryDto(
                 categoryAssignment is null ? [] : [categoryAssignment.Category.Name],
                 currentUserId),
             review.Photos.OrderBy(x => x.CreatedAt).Select(x => x.ToDto()).ToArray());
 
-    public static DishReviewDto ToDto(this DishReview review, Guid currentUserId) =>
+    public static DishReviewDto ToDto(this DishReview review, Guid currentUserId, bool canViewAuthorProfilePicture) =>
         review.ToDto(
             currentUserId,
+            canViewAuthorProfilePicture,
             review.Place.CategoryAssignments
                 .FirstOrDefault(x => x.AssignedByUserId == review.AuthorUserId));
 
     public static DishReviewDto ToDto(
         this DishReview review,
         Guid currentUserId,
+        bool canViewAuthorProfilePicture,
         PlaceCategoryAssignment? categoryAssignment) =>
         new(
             review.Id,
@@ -118,7 +129,7 @@ public static class DtoMapper
             review.CurrencyCode,
             review.CreatedAt,
             review.UpdatedAt,
-            review.AuthorUser.ToSummaryDto(),
+            review.AuthorUser.ToSummaryDto(canViewAuthorProfilePicture),
             review.Place.ToSummaryDto(
                 categoryAssignment is null ? [] : [categoryAssignment.Category.Name],
                 currentUserId),

@@ -1,0 +1,121 @@
+using Microsoft.EntityFrameworkCore;
+using TrustMap.Domain.Enums;
+using TrustMap.Infrastructure.Persistence;
+
+namespace TrustMap.Api.Services;
+
+public sealed record ViewerAccess(
+    Guid UserId,
+    bool IsSelf,
+    bool IsDirectFriend,
+    bool IsFriendOfFriend)
+{
+    public bool CanAccess(VisibilityLevel visibility) =>
+        visibility switch
+        {
+            VisibilityLevel.Public => true,
+            VisibilityLevel.FriendsOfFriends => IsSelf || IsDirectFriend || IsFriendOfFriend,
+            VisibilityLevel.Friends => IsSelf || IsDirectFriend,
+            VisibilityLevel.Private => IsSelf,
+            _ => false
+        };
+}
+
+public sealed record ViewerSocialAccess(
+    HashSet<Guid> FriendIds,
+    HashSet<Guid> FriendOfFriendIds);
+
+public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
+{
+    public async Task<bool> CanViewerAccessAsync(
+        Guid viewerUserId,
+        Guid ownerUserId,
+        VisibilityLevel visibility,
+        CancellationToken cancellationToken)
+    {
+        var accessMap = await GetAccessMapAsync(viewerUserId, [ownerUserId], cancellationToken);
+        return accessMap.GetValueOrDefault(ownerUserId)?.CanAccess(visibility) ?? false;
+    }
+
+    public async Task<Dictionary<Guid, ViewerAccess>> GetAccessMapAsync(
+        Guid viewerUserId,
+        IReadOnlyCollection<Guid> ownerUserIds,
+        CancellationToken cancellationToken)
+    {
+        var targetIds = ownerUserIds.Distinct().ToList();
+        var result = targetIds.ToDictionary(
+            x => x,
+            x => new ViewerAccess(x, x == viewerUserId, IsDirectFriend: false, IsFriendOfFriend: false));
+
+        var nonSelfTargetIds = targetIds.Where(x => x != viewerUserId).ToList();
+        if (nonSelfTargetIds.Count == 0)
+        {
+            return result;
+        }
+
+        var friendIds = await GetFriendIdsAsync(viewerUserId, cancellationToken);
+        foreach (var userId in nonSelfTargetIds.Where(friendIds.Contains))
+        {
+            result[userId] = result[userId] with { IsDirectFriend = true };
+        }
+
+        if (friendIds.Count == 0)
+        {
+            return result;
+        }
+
+        var friendOfFriendIds = await dbContext.Friendships
+            .AsNoTracking()
+            .Where(x =>
+                (friendIds.Contains(x.UserAId) && nonSelfTargetIds.Contains(x.UserBId))
+                || (friendIds.Contains(x.UserBId) && nonSelfTargetIds.Contains(x.UserAId)))
+            .Select(x => friendIds.Contains(x.UserAId) ? x.UserBId : x.UserAId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var userId in friendOfFriendIds.Where(x => x != viewerUserId && !friendIds.Contains(x)))
+        {
+            if (result.TryGetValue(userId, out var access))
+            {
+                result[userId] = access with { IsFriendOfFriend = true };
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<ViewerSocialAccess> GetViewerSocialAccessAsync(
+        Guid viewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var friendIds = await GetFriendIdsAsync(viewerUserId, cancellationToken);
+        if (friendIds.Count == 0)
+        {
+            return new ViewerSocialAccess(friendIds, []);
+        }
+
+        var friendOfFriendIds = await dbContext.Friendships
+            .AsNoTracking()
+            .Where(x => friendIds.Contains(x.UserAId) || friendIds.Contains(x.UserBId))
+            .Select(x => friendIds.Contains(x.UserAId) ? x.UserBId : x.UserAId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        friendOfFriendIds.Remove(viewerUserId);
+        var friendOfFriendSet = friendOfFriendIds.ToHashSet();
+        friendOfFriendSet.ExceptWith(friendIds);
+
+        return new ViewerSocialAccess(friendIds, friendOfFriendSet);
+    }
+
+    private async Task<HashSet<Guid>> GetFriendIdsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var friendIds = await dbContext.Friendships
+            .AsNoTracking()
+            .Where(x => x.UserAId == userId || x.UserBId == userId)
+            .Select(x => x.UserAId == userId ? x.UserBId : x.UserAId)
+            .ToListAsync(cancellationToken);
+
+        return friendIds.ToHashSet();
+    }
+}

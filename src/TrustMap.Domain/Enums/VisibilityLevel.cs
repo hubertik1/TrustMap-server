@@ -4,5 +4,6 @@ public enum VisibilityLevel
 {
     Private = 1,
     Friends = 2,
-    Public = 3
+    Public = 3,
+    FriendsOfFriends = 4
 }

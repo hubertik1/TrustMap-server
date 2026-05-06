@@ -34,7 +34,13 @@ public sealed class User
 
     public string? Email { get; private set; }
 
-    public bool FriendsVisibleToOthers { get; private set; } = true;
+    public VisibilityLevel ReviewVisibility { get; private set; } = VisibilityLevel.Friends;
+
+    public VisibilityLevel FriendListVisibility { get; private set; } = VisibilityLevel.Friends;
+
+    public VisibilityLevel ProfileVisibility { get; private set; } = VisibilityLevel.Public;
+
+    public VisibilityLevel ProfilePictureVisibility { get; private set; } = VisibilityLevel.Public;
 
     public UserAccountStatus Status { get; private set; }
 
@@ -85,9 +91,18 @@ public sealed class User
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void SetFriendsVisibleToOthers(bool value)
+    public void UpdatePrivacySettings(
+        VisibilityLevel reviewVisibility,
+        VisibilityLevel friendListVisibility,
+        VisibilityLevel profileVisibility,
+        VisibilityLevel profilePictureVisibility)
     {
-        FriendsVisibleToOthers = value;
+        EnsureValidPrivacySettings(reviewVisibility, friendListVisibility, profileVisibility, profilePictureVisibility);
+
+        ReviewVisibility = reviewVisibility;
+        FriendListVisibility = friendListVisibility;
+        ProfileVisibility = profileVisibility;
+        ProfilePictureVisibility = profilePictureVisibility;
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -95,5 +110,40 @@ public sealed class User
     {
         Status = status;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static void EnsureValidPrivacySettings(
+        VisibilityLevel reviewVisibility,
+        VisibilityLevel friendListVisibility,
+        VisibilityLevel profileVisibility,
+        VisibilityLevel profilePictureVisibility)
+    {
+        EnsureDefinedVisibility(reviewVisibility, nameof(reviewVisibility));
+        EnsureDefinedVisibility(friendListVisibility, nameof(friendListVisibility));
+        EnsureDefinedVisibility(profileVisibility, nameof(profileVisibility));
+        EnsureDefinedVisibility(profilePictureVisibility, nameof(profilePictureVisibility));
+
+        if (reviewVisibility == VisibilityLevel.Private)
+        {
+            throw new InvalidOperationException("Review visibility cannot be private.");
+        }
+
+        if (profileVisibility == VisibilityLevel.Private)
+        {
+            throw new InvalidOperationException("Profile visibility cannot be private.");
+        }
+
+        if (profilePictureVisibility == VisibilityLevel.Private)
+        {
+            throw new InvalidOperationException("Profile picture visibility cannot be private.");
+        }
+    }
+
+    private static void EnsureDefinedVisibility(VisibilityLevel visibility, string parameterName)
+    {
+        if (!Enum.IsDefined(visibility))
+        {
+            throw new InvalidOperationException($"{parameterName} is not a valid visibility level.");
+        }
     }
 }

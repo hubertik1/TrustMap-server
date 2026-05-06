@@ -17,7 +17,7 @@ namespace TrustMap.Api.Controllers;
 public sealed class PlacesController(
     TrustMapDbContext dbContext,
     PlaceCatalogService placeCatalogService,
-    SocialGraphService socialGraphService) : ControllerBase
+    PrivacyAccessService privacyAccessService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<PlaceSummaryDto>>(StatusCodes.Status200OK)]
@@ -82,7 +82,7 @@ public sealed class PlacesController(
     public async Task<ActionResult<PlaceDetailDto>> GetPlace(Guid id, CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
-        var friendIds = await socialGraphService.GetFriendIdsAsync(currentUserId, cancellationToken);
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
 
         var place = await dbContext.Places
             .AsNoTracking()
@@ -91,12 +91,12 @@ public sealed class PlacesController(
 
         var visiblePlaceReviewsQuery = dbContext.PlaceReviews
             .AsNoTracking()
-            .VisibleToViewer(currentUserId, friendIds)
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .Where(x => x.PlaceId == id);
 
         var visibleDishReviewsQuery = dbContext.DishReviews
             .AsNoTracking()
-            .VisibleToViewer(currentUserId, friendIds)
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .Where(x => x.PlaceId == id);
 
         var visiblePlaceReviewCount = await visiblePlaceReviewsQuery.CountAsync(cancellationToken);
