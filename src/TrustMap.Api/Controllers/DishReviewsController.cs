@@ -55,6 +55,7 @@ public sealed class DishReviewsController(
 
         if (authorUserId.HasValue)
         {
+            await EnsureCanViewAuthorReviewsAsync(currentUserId, authorUserId.Value, cancellationToken);
             query = query.Where(x => x.AuthorUserId == authorUserId.Value);
         }
 
@@ -73,6 +74,22 @@ public sealed class DishReviewsController(
                 currentUserId,
                 authorAccess.GetValueOrDefault(x.AuthorUserId)?.CanAccess(x.AuthorUser.ProfilePictureVisibility) ?? false))
             .ToArray());
+    }
+
+    private async Task EnsureCanViewAuthorReviewsAsync(
+        Guid currentUserId,
+        Guid authorUserId,
+        CancellationToken cancellationToken)
+    {
+        var canViewReviews = await privacyAccessService.CanViewerAccessUserReviewsAsync(
+            currentUserId,
+            authorUserId,
+            cancellationToken);
+
+        if (canViewReviews == false)
+        {
+            throw ApiException.Forbidden("This user's reviews are private.", "reviews_private");
+        }
     }
 
     [HttpGet("{id:guid}")]

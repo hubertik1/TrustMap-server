@@ -28,6 +28,7 @@ public sealed record UserProfileDto(
     VisibilityLevel ProfilePictureVisibility,
     bool CanViewProfile,
     bool CanViewFriends,
+    bool CanViewReviews,
     bool CanViewProfilePicture);
 
 public sealed record UserSearchResultDto(

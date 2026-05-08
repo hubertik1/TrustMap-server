@@ -37,6 +37,33 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
         return accessMap.GetValueOrDefault(ownerUserId)?.CanAccess(visibility) ?? false;
     }
 
+    public async Task<bool?> CanViewerAccessUserReviewsAsync(
+        Guid viewerUserId,
+        Guid ownerUserId,
+        CancellationToken cancellationToken)
+    {
+        var visibility = await dbContext.Users
+            .AsNoTracking()
+            .Where(x => x.Id == ownerUserId)
+            .Select(x => new
+            {
+                x.ProfileVisibility,
+                x.ReviewVisibility
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (visibility is null)
+        {
+            return null;
+        }
+
+        var accessMap = await GetAccessMapAsync(viewerUserId, [ownerUserId], cancellationToken);
+        var access = accessMap[ownerUserId];
+
+        return access.CanAccess(visibility.ProfileVisibility)
+            && access.CanAccess(visibility.ReviewVisibility);
+    }
+
     public async Task<Dictionary<Guid, ViewerAccess>> GetAccessMapAsync(
         Guid viewerUserId,
         IReadOnlyCollection<Guid> ownerUserIds,

@@ -20,6 +20,7 @@ public static class DtoMapper
         bool isMe,
         bool canViewProfile,
         bool canViewFriends,
+        bool canViewReviews,
         bool canViewProfilePicture) =>
         new(
             user.Id,
@@ -29,8 +30,8 @@ public static class DtoMapper
             canViewProfilePicture ? user.AvatarUrl : null,
             relationshipStatus,
             canViewProfile && canViewFriends ? friendCount : 0,
-            canViewProfile ? visiblePlaceReviewCount : 0,
-            canViewProfile ? visibleDishReviewCount : 0,
+            canViewProfile && canViewReviews ? visiblePlaceReviewCount : 0,
+            canViewProfile && canViewReviews ? visibleDishReviewCount : 0,
             isMe,
             user.ReviewVisibility,
             user.FriendListVisibility,
@@ -38,6 +39,7 @@ public static class DtoMapper
             user.ProfilePictureVisibility,
             canViewProfile,
             canViewProfile && canViewFriends,
+            canViewProfile && canViewReviews,
             canViewProfilePicture);
 
     public static PlaceSummaryDto ToSummaryDto(this Place place, Guid currentUserId) =>

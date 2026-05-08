@@ -29,6 +29,7 @@ public sealed class ProfileQueryService(
         var access = accessMap[targetUserId];
         var canViewProfile = access.CanAccess(user.ProfileVisibility);
         var canViewFriends = canViewProfile && access.CanAccess(user.FriendListVisibility);
+        var canViewReviews = canViewProfile && access.CanAccess(user.ReviewVisibility);
         var canViewProfilePicture = access.CanAccess(user.ProfilePictureVisibility);
 
         var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(viewerUserId, cancellationToken);
@@ -36,14 +37,14 @@ public sealed class ProfileQueryService(
             ? await socialGraphService.GetFriendCountAsync(targetUserId, cancellationToken)
             : 0;
 
-        var visiblePlaceReviewCount = canViewProfile
+        var visiblePlaceReviewCount = canViewProfile && canViewReviews
             ? await dbContext.PlaceReviews
                 .AsNoTracking()
                 .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
                 .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken)
             : 0;
 
-        var visibleDishReviewCount = canViewProfile
+        var visibleDishReviewCount = canViewProfile && canViewReviews
             ? await dbContext.DishReviews
                 .AsNoTracking()
                 .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
@@ -58,6 +59,7 @@ public sealed class ProfileQueryService(
             isMe: viewerUserId == targetUserId,
             canViewProfile,
             canViewFriends,
+            canViewReviews,
             canViewProfilePicture);
     }
 }
