@@ -9,6 +9,7 @@ using Microsoft.OpenApi;
 using TrustMap.Api.Common;
 using TrustMap.Api.Health;
 using TrustMap.Api.Services;
+using TrustMap.Api.Services.PushNotifications;
 using TrustMap.Infrastructure;
 using TrustMap.Infrastructure.Authentication;
 using TrustMap.Infrastructure.Persistence;
@@ -60,6 +61,8 @@ builder.Services.AddScoped<SocialGraphService>();
 builder.Services.AddScoped<PrivacyAccessService>();
 builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddSingleton<IPushNotificationSender, NoOpPushNotificationSender>();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
 var configuredJwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();

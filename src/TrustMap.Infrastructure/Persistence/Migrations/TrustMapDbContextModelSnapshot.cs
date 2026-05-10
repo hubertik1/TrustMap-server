@@ -864,6 +864,123 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("user_category_memberships", (string)null);
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserDeviceToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BuildNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "RevokedAt");
+
+                    b.HasIndex("Token", "Platform", "Environment")
+                        .IsUnique();
+
+                    b.ToTable("user_device_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("DishReviewId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("FriendRequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("PlaceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("PlaceReviewId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RecipientUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique();
+
+                    b.HasIndex("DishReviewId");
+
+                    b.HasIndex("FriendRequestId");
+
+                    b.HasIndex("PlaceId");
+
+                    b.HasIndex("PlaceReviewId");
+
+                    b.HasIndex("ActorUserId", "CreatedAt");
+
+                    b.HasIndex("RecipientUserId", "CreatedAt");
+
+                    b.HasIndex("RecipientUserId", "ReadAt", "CreatedAt");
+
+                    b.ToTable("notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_notifications_references_match_type", "(\"Type\" = 1\n    AND \"PlaceId\" IS NOT NULL\n    AND \"PlaceReviewId\" IS NOT NULL\n    AND \"DishReviewId\" IS NULL\n    AND \"FriendRequestId\" IS NULL)\nOR (\"Type\" = 2\n    AND \"PlaceId\" IS NOT NULL\n    AND \"PlaceReviewId\" IS NULL\n    AND \"DishReviewId\" IS NOT NULL\n    AND \"FriendRequestId\" IS NULL)\nOR (\"Type\" = 3\n    AND \"PlaceId\" IS NULL\n    AND \"PlaceReviewId\" IS NULL\n    AND \"DishReviewId\" IS NULL\n    AND \"FriendRequestId\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.AppleIdentity", b =>
                 {
                     b.HasOne("TrustMap.Domain.Entities.User", "User")
@@ -1073,6 +1190,64 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserDeviceToken", b =>
+                {
+                    b.HasOne("TrustMap.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustMap.Domain.Entities.UserNotification", b =>
+                {
+                    b.HasOne("TrustMap.Domain.Entities.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustMap.Domain.Entities.DishReview", "DishReview")
+                        .WithMany()
+                        .HasForeignKey("DishReviewId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("TrustMap.Domain.Entities.FriendRequest", "FriendRequest")
+                        .WithMany()
+                        .HasForeignKey("FriendRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TrustMap.Domain.Entities.Place", "Place")
+                        .WithMany()
+                        .HasForeignKey("PlaceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TrustMap.Domain.Entities.PlaceReview", "PlaceReview")
+                        .WithMany()
+                        .HasForeignKey("PlaceReviewId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("TrustMap.Domain.Entities.User", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("DishReview");
+
+                    b.Navigation("FriendRequest");
+
+                    b.Navigation("Place");
+
+                    b.Navigation("PlaceReview");
+
+                    b.Navigation("RecipientUser");
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.Category", b =>

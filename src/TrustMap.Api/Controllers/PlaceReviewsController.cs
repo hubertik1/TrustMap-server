@@ -6,6 +6,7 @@ using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Reviews;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
 
@@ -18,6 +19,7 @@ public sealed class PlaceReviewsController(
     TrustMapDbContext dbContext,
     PrivacyAccessService privacyAccessService,
     CategoryAssignmentService categoryAssignmentService,
+    NotificationService notificationService,
     IPhotoStorage photoStorage,
     ILogger<PlaceReviewsController> logger) : ControllerBase
 {
@@ -141,7 +143,14 @@ public sealed class PlaceReviewsController(
 
         dbContext.PlaceReviews.Add(review);
         await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, place.Id, request.CategoryId, cancellationToken);
+        var notifications = await notificationService.CreatePlaceReviewAddedAsync(
+            currentUserId,
+            place.Id,
+            review.Id,
+            request.Visibility,
+            cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
 
         var created = await dbContext.PlaceReviews
             .AsNoTracking()
@@ -183,7 +192,13 @@ public sealed class PlaceReviewsController(
             return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
         }
 
+        var previousVisibility = review.Visibility;
         var reviewFieldsChanged = review.Update(request.Visibility, request.Rating, request.Title, request.Body);
+        if (previousVisibility != VisibilityLevel.Private && request.Visibility == VisibilityLevel.Private)
+        {
+            await notificationService.DeleteReviewNotificationsAsync(placeReviewId: review.Id, cancellationToken: cancellationToken);
+        }
+
         if (categoryChanged)
         {
             await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
@@ -247,6 +262,7 @@ public sealed class PlaceReviewsController(
             .Distinct()
             .ToArray();
         var placeId = review.PlaceId;
+        await notificationService.DeleteReviewNotificationsAsync(placeReviewId: review.Id, cancellationToken: cancellationToken);
         dbContext.PlaceReviews.Remove(review);
         await dbContext.SaveChangesAsync(cancellationToken);
         await categoryAssignmentService.RemoveAssignmentIfUnusedAsync(currentUserId, placeId, cancellationToken);

@@ -29,6 +29,10 @@ public sealed class TrustMapDbContext(DbContextOptions<TrustMapDbContext> option
 
     public DbSet<Photo> Photos => Set<Photo>();
 
+    public DbSet<UserNotification> Notifications => Set<UserNotification>();
+
+    public DbSet<UserDeviceToken> DeviceTokens => Set<UserDeviceToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrustMapDbContext).Assembly);

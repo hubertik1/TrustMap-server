@@ -16,7 +16,8 @@ namespace TrustMap.Api.Controllers;
 [Route("friend-requests")]
 public sealed class FriendRequestsController(
     TrustMapDbContext dbContext,
-    PrivacyAccessService privacyAccessService) : ControllerBase
+    PrivacyAccessService privacyAccessService,
+    NotificationService notificationService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<FriendRequestDto>(StatusCodes.Status201Created)]
@@ -59,7 +60,13 @@ public sealed class FriendRequestsController(
         var sender = await dbContext.Users.SingleAsync(x => x.Id == currentUserId, cancellationToken);
         var friendRequest = new FriendRequest(Guid.CreateVersion7(), currentUserId, request.ReceiverUserId);
         dbContext.FriendRequests.Add(friendRequest);
+        var notifications = await notificationService.CreateFriendRequestSentAsync(
+            currentUserId,
+            request.ReceiverUserId,
+            friendRequest.Id,
+            cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
         var accessMap = await privacyAccessService.GetAccessMapAsync(
             currentUserId,
             [sender.Id, receiver.Id],
@@ -142,6 +149,7 @@ public sealed class FriendRequestsController(
         request.Accept();
         var friendship = new Friendship(Guid.CreateVersion7(), request.SenderUserId, request.ReceiverUserId, request.Id);
         dbContext.Friendships.Add(friendship);
+        await notificationService.MarkFriendRequestNotificationReadAsync(request.Id, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var otherUser = request.SenderUserId == currentUserId ? request.ReceiverUser : request.SenderUser;
@@ -168,6 +176,7 @@ public sealed class FriendRequestsController(
         }
 
         request.Reject();
+        await notificationService.MarkFriendRequestNotificationReadAsync(request.Id, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return Ok(await ToDtoAsync(currentUserId, request, cancellationToken));
     }
@@ -189,6 +198,7 @@ public sealed class FriendRequestsController(
         }
 
         request.Cancel();
+        await notificationService.DeleteFriendRequestNotificationAsync(request.Id, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return Ok(await ToDtoAsync(currentUserId, request, cancellationToken));
     }

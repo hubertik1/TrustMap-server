@@ -17,6 +17,12 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:;Foreign Keys=True");
     private readonly string _photoRootPath = Path.Combine(Path.GetTempPath(), "trustmap-tests", Guid.NewGuid().ToString("N"));
+    private readonly Action<IServiceCollection>? _configureServices;
+
+    public TrustMapWebApplicationFactory(Action<IServiceCollection>? configureServices = null)
+    {
+        _configureServices = configureServices;
+    }
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
@@ -66,6 +72,8 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
                 options.RootPath = _photoRootPath;
                 options.RequestPath = "/uploads";
             });
+
+            _configureServices?.Invoke(services);
         });
     }
 

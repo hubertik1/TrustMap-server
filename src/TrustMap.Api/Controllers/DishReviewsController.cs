@@ -6,6 +6,7 @@ using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Reviews;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
 
@@ -18,6 +19,7 @@ public sealed class DishReviewsController(
     TrustMapDbContext dbContext,
     PrivacyAccessService privacyAccessService,
     CategoryAssignmentService categoryAssignmentService,
+    NotificationService notificationService,
     IPhotoStorage photoStorage,
     ILogger<DishReviewsController> logger) : ControllerBase
 {
@@ -165,7 +167,14 @@ public sealed class DishReviewsController(
 
         dbContext.DishReviews.Add(review);
         await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, place.Id, request.CategoryId, cancellationToken);
+        var notifications = await notificationService.CreateDishReviewAddedAsync(
+            currentUserId,
+            place.Id,
+            review.Id,
+            request.Visibility,
+            cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
 
         var created = await dbContext.DishReviews
             .AsNoTracking()
@@ -215,7 +224,13 @@ public sealed class DishReviewsController(
             return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
         }
 
+        var previousVisibility = review.Visibility;
         var reviewFieldsChanged = review.Update(request.Visibility, request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
+        if (previousVisibility != VisibilityLevel.Private && request.Visibility == VisibilityLevel.Private)
+        {
+            await notificationService.DeleteReviewNotificationsAsync(dishReviewId: review.Id, cancellationToken: cancellationToken);
+        }
+
         if (categoryChanged)
         {
             await categoryAssignmentService.UpsertPlaceAssignmentAsync(currentUserId, review.PlaceId, request.CategoryId, cancellationToken);
@@ -279,6 +294,7 @@ public sealed class DishReviewsController(
             .Distinct()
             .ToArray();
         var placeId = review.PlaceId;
+        await notificationService.DeleteReviewNotificationsAsync(dishReviewId: review.Id, cancellationToken: cancellationToken);
         dbContext.DishReviews.Remove(review);
         await dbContext.SaveChangesAsync(cancellationToken);
         await categoryAssignmentService.RemoveAssignmentIfUnusedAsync(currentUserId, placeId, cancellationToken);
