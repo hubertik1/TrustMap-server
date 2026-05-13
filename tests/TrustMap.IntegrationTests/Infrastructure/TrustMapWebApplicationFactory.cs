@@ -1,5 +1,7 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -33,6 +35,19 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
 
     public string PhotoRootPath => _photoRootPath;
 
+    public HttpClient CreateClient(IPAddress remoteIpAddress)
+    {
+        var handler = Server.CreateHandler(context =>
+        {
+            context.Connection.RemoteIpAddress = remoteIpAddress;
+        });
+
+        return new HttpClient(handler)
+        {
+            BaseAddress = Server.BaseAddress
+        };
+    }
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.UseEnvironment(_environmentName);
@@ -51,7 +66,8 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
                 ["PhotoStorage:RequestPath"] = "/uploads",
                 ["PhotoStorage:MaxUploadBytes"] = PhotoStorageOptions.DefaultMaxUploadBytes.ToString(),
                 ["PhotoStorage:OutputFormat"] = "jpeg",
-                ["PhotoStorage:JpegQuality"] = "85"
+                ["PhotoStorage:JpegQuality"] = "85",
+                ["RateLimits:Enabled"] = "false"
             };
 
             foreach (var (key, value) in _configurationOverrides)

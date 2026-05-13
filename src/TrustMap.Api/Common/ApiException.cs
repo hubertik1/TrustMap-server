@@ -35,4 +35,7 @@ public sealed class ApiException : Exception
 
     public static ApiException Conflict(string detail, string? errorCode = null) =>
         new(HttpStatusCode.Conflict, "Conflict", detail, errorCode);
+
+    public static ApiException TooManyRequests(string detail, string? errorCode = null) =>
+        new(HttpStatusCode.TooManyRequests, "Too Many Requests", detail, errorCode);
 }

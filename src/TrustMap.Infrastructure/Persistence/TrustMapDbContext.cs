@@ -33,6 +33,8 @@ public sealed class TrustMapDbContext(DbContextOptions<TrustMapDbContext> option
 
     public DbSet<UserDeviceToken> DeviceTokens => Set<UserDeviceToken>();
 
+    public DbSet<QuotaUsage> QuotaUsages => Set<QuotaUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrustMapDbContext).Assembly);

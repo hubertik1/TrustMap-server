@@ -144,7 +144,7 @@ public sealed class UserSearchTests
     }
 
     [Fact]
-    public async Task Search_OneCharacterQuery_RemainsAllowed()
+    public async Task Search_OneCharacterQuery_ReturnsEmptyResult()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -154,7 +154,8 @@ public sealed class UserSearchTests
 
         var results = await searchClient.SearchUsersAsync("z", take: 10);
 
-        Assert.Contains(results, x => x.User.Id == target.User.Id);
+        Assert.DoesNotContain(results, x => x.User.Id == target.User.Id);
+        Assert.Empty(results);
     }
 
     private static async Task<TestApiClient> CreateAuthenticatedSearchClientAsync(TrustMapWebApplicationFactory factory)

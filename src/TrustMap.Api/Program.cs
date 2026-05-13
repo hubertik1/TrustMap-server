@@ -8,6 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using TrustMap.Api.Common;
 using TrustMap.Api.Health;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Api.Services.PushNotifications;
 using TrustMap.Infrastructure;
@@ -30,6 +32,7 @@ var multipartBodyLimit = maxUploadBytes > long.MaxValue - MultipartEnvelopeBytes
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = multipartBodyLimit;
@@ -79,8 +82,14 @@ builder.Services.AddScoped<PrivacyAccessService>();
 builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<IQuotaService, EfQuotaService>();
 builder.Services.AddSingleton<IPushNotificationSender, NoOpPushNotificationSender>();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+builder.Services.AddOptions<QuotaOptions>()
+    .Bind(builder.Configuration.GetSection(QuotaOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<QuotaOptions>, QuotaOptionsValidator>();
+builder.Services.AddTrustMapRateLimiting(builder.Configuration);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
@@ -122,7 +131,9 @@ else
     app.UseHttpsRedirection();
 }
 
+app.UseRouting();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

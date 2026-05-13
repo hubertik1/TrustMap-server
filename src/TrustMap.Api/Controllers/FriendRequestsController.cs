@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Friends;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Entities;
 using TrustMap.Domain.Enums;
@@ -17,9 +21,16 @@ namespace TrustMap.Api.Controllers;
 public sealed class FriendRequestsController(
     TrustMapDbContext dbContext,
     PrivacyAccessService privacyAccessService,
-    NotificationService notificationService) : ControllerBase
+    NotificationService notificationService,
+    IQuotaService quotaService,
+    IOptions<QuotaOptions> quotaOptionsAccessor,
+    TimeProvider timeProvider,
+    ILogger<FriendRequestsController> logger) : ControllerBase
 {
+    private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
+
     [HttpPost]
+    [EnableRateLimiting(RateLimitPolicyNames.FriendRequests)]
     [ProducesResponseType<FriendRequestDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<FriendRequestDto>> Create(
         [FromBody] CreateFriendRequestRequest request,
@@ -59,13 +70,30 @@ public sealed class FriendRequestsController(
 
         var sender = await dbContext.Users.SingleAsync(x => x.Id == currentUserId, cancellationToken);
         var friendRequest = new FriendRequest(Guid.CreateVersion7(), currentUserId, request.ReceiverUserId);
-        dbContext.FriendRequests.Add(friendRequest);
-        var notifications = await notificationService.CreateFriendRequestSentAsync(
-            currentUserId,
-            request.ReceiverUserId,
-            friendRequest.Id,
-            cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        IReadOnlyList<UserNotification> notifications;
+        await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
+        {
+            await EnsureFriendRequestQuotaAllowsCreateAsync(currentUserId, request.ReceiverUserId, cancellationToken);
+
+            var quotaResult = await quotaService.CheckAndConsumeAsync(
+                BuildFriendRequestQuotaConsumptions(currentUserId),
+                cancellationToken);
+            QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
+
+            dbContext.FriendRequests.Add(friendRequest);
+            notifications = await notificationService.CreateFriendRequestSentAsync(
+                currentUserId,
+                request.ReceiverUserId,
+                friendRequest.Id,
+                cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        logger.LogInformation(
+            "Accepted outgoing friend request quota usage for user {UserId}.",
+            currentUserId);
         await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
         var accessMap = await privacyAccessService.GetAccessMapAsync(
             currentUserId,
@@ -120,6 +148,7 @@ public sealed class FriendRequestsController(
     }
 
     [HttpPost("{id:guid}/accept")]
+    [EnableRateLimiting(RateLimitPolicyNames.FriendRequests)]
     [ProducesResponseType<FriendDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<FriendDto>> Accept(Guid id, CancellationToken cancellationToken)
     {
@@ -160,6 +189,7 @@ public sealed class FriendRequestsController(
     }
 
     [HttpPost("{id:guid}/reject")]
+    [EnableRateLimiting(RateLimitPolicyNames.FriendRequests)]
     [ProducesResponseType<FriendRequestDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<FriendRequestDto>> Reject(Guid id, CancellationToken cancellationToken)
     {
@@ -182,6 +212,7 @@ public sealed class FriendRequestsController(
     }
 
     [HttpPost("{id:guid}/cancel")]
+    [EnableRateLimiting(RateLimitPolicyNames.FriendRequests)]
     [ProducesResponseType<FriendRequestDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<FriendRequestDto>> Cancel(Guid id, CancellationToken cancellationToken)
     {
@@ -202,6 +233,80 @@ public sealed class FriendRequestsController(
         await dbContext.SaveChangesAsync(cancellationToken);
         return Ok(await ToDtoAsync(currentUserId, request, cancellationToken));
     }
+
+    private async Task EnsureFriendRequestQuotaAllowsCreateAsync(
+        Guid senderUserId,
+        Guid receiverUserId,
+        CancellationToken cancellationToken)
+    {
+        if (!_quotaOptions.Enabled)
+        {
+            return;
+        }
+
+        var pendingOutgoingCount = await dbContext.FriendRequests
+            .AsNoTracking()
+            .CountAsync(
+                x => x.SenderUserId == senderUserId && x.Status == FriendRequestStatus.Pending,
+                cancellationToken);
+
+        if (pendingOutgoingCount >= _quotaOptions.FriendRequests.MaxPendingOutgoingPerUser)
+        {
+            throw ApiException.TooManyRequests(
+                "You have too many pending friend requests. Please resolve some before sending more.",
+                "friend_request_pending_quota_exceeded");
+        }
+
+        if (_quotaOptions.FriendRequests.RejectedTargetCooldownHours > 0)
+        {
+            var cooldownStartedAt = timeProvider
+                .GetUtcNow()
+                .AddHours(-_quotaOptions.FriendRequests.RejectedTargetCooldownHours)
+                .UtcDateTime;
+            var recentlyResolved = await dbContext.FriendRequests
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.SenderUserId == senderUserId
+                        && x.ReceiverUserId == receiverUserId
+                        && x.ResolvedAt >= cooldownStartedAt
+                        && (x.Status == FriendRequestStatus.Rejected || x.Status == FriendRequestStatus.Cancelled),
+                    cancellationToken);
+
+            if (recentlyResolved)
+            {
+                throw ApiException.TooManyRequests(
+                    "Please wait before sending another friend request to this user.",
+                    "friend_request_target_cooldown");
+            }
+        }
+
+        var quotaPrecheck = await quotaService.CheckAsync(
+            BuildFriendRequestQuotaConsumptions(senderUserId),
+            cancellationToken);
+        QuotaRejection.ThrowIfRejected(HttpContext, quotaPrecheck);
+    }
+
+    private IReadOnlyCollection<QuotaConsumption> BuildFriendRequestQuotaConsumptions(Guid userId) =>
+    [
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.FriendRequestsPerHour,
+            QuotaPeriodKind.Hour,
+            CountCost: 1,
+            ByteCost: 0,
+            CountLimit: _quotaOptions.FriendRequests.MaxOutgoingPerUserPerHour,
+            ByteLimit: null),
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.FriendRequestsPerDay,
+            QuotaPeriodKind.Day,
+            CountCost: 1,
+            ByteCost: 0,
+            CountLimit: _quotaOptions.FriendRequests.MaxOutgoingPerUserPerDay,
+            ByteLimit: null)
+    ];
 
     private async Task<FriendRequestDto> ToDtoAsync(
         Guid viewerUserId,

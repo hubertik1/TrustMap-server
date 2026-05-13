@@ -716,6 +716,55 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("place_reviews", (string)null);
                 });
 
+            modelBuilder.Entity("TrustMap.Domain.Entities.QuotaUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("PeriodEndUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("PeriodStartUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("QuotaName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PeriodEndUtc");
+
+                    b.HasIndex("Scope", "SubjectKey", "QuotaName", "PeriodStartUtc")
+                        .IsUnique();
+
+                    b.ToTable("quota_usages", (string)null);
+                });
+
             modelBuilder.Entity("TrustMap.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")

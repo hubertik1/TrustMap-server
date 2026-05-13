@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Reviews;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Domain.Entities;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
@@ -17,13 +20,17 @@ namespace TrustMap.Api.Controllers;
 public sealed class PhotosController(
     TrustMapDbContext dbContext,
     IPhotoStorage photoStorage,
+    IQuotaService quotaService,
     ILogger<PhotosController> logger,
-    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor) : ControllerBase
+    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor,
+    IOptions<QuotaOptions> quotaOptionsAccessor) : ControllerBase
 {
     private readonly PhotoStorageOptions _photoStorageOptions = photoStorageOptionsAccessor.Value;
+    private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
 
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
+    [EnableRateLimiting(RateLimitPolicyNames.Upload)]
     [ProducesResponseType<PhotoDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<PhotoDto>> Upload(
         [FromForm] UploadPhotoRequest request,
@@ -72,6 +79,10 @@ public sealed class PhotosController(
             dishReviewId = dishReview.Id;
         }
 
+        var quotaConsumptions = BuildPhotoUploadQuotaConsumptions(currentUserId, request.File.Length);
+        var quotaPrecheck = await quotaService.CheckAsync(quotaConsumptions, cancellationToken);
+        QuotaRejection.ThrowIfRejected(HttpContext, quotaPrecheck);
+
         await using var stream = request.File.OpenReadStream();
         var storedPhoto = await photoStorage.SaveAsync(stream, cancellationToken);
 
@@ -94,13 +105,17 @@ public sealed class PhotosController(
             storedPhoto.Width,
             storedPhoto.Height);
 
-        dbContext.Photos.Add(photo);
-        placeReview?.Touch();
-        dishReview?.Touch();
-
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            var quotaResult = await quotaService.CheckAndConsumeAsync(quotaConsumptions, cancellationToken);
+            QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
+
+            dbContext.Photos.Add(photo);
+            placeReview?.Touch();
+            dishReview?.Touch();
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
@@ -108,6 +123,10 @@ public sealed class PhotosController(
             throw;
         }
 
+        logger.LogInformation(
+            "Accepted photo upload for user {UserId} with {UploadBytes} bytes.",
+            currentUserId,
+            request.File.Length);
         return Created($"/photos/{photo.Id}", photo.ToDto());
     }
 
@@ -213,4 +232,26 @@ public sealed class PhotosController(
             ? storageKey
             : storageKey[(slashIndex + 1)..];
     }
+
+    private IReadOnlyCollection<QuotaConsumption> BuildPhotoUploadQuotaConsumptions(Guid userId, long uploadBytes) =>
+    [
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.UploadPhotosPerDay,
+            QuotaPeriodKind.Day,
+            CountCost: 1,
+            ByteCost: 0,
+            CountLimit: _quotaOptions.Uploads.MaxPhotosPerUserPerDay,
+            ByteLimit: null),
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.UploadBytesPerDay,
+            QuotaPeriodKind.Day,
+            CountCost: 0,
+            ByteCost: uploadBytes,
+            CountLimit: null,
+            ByteLimit: _quotaOptions.Uploads.MaxBytesPerUserPerDay)
+    ];
 }

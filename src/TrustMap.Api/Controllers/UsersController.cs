@@ -1,11 +1,15 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Friends;
 using TrustMap.Api.Features.Users;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Common;
 using TrustMap.Infrastructure.Persistence;
@@ -19,11 +23,14 @@ public sealed class UsersController(
     TrustMapDbContext dbContext,
     SocialGraphService socialGraphService,
     ProfileQueryService profileQueryService,
-    PrivacyAccessService privacyAccessService) : ControllerBase
+    PrivacyAccessService privacyAccessService,
+    IQuotaService quotaService,
+    IOptions<QuotaOptions> quotaOptionsAccessor) : ControllerBase
 {
     private const string LatinSmallLetterLWithStroke = "\u0142";
     private const string LatinSmallLetterL = "l";
     private static readonly Regex HandleHashSpacingRegex = new(@"\s*#\s*", RegexOptions.Compiled);
+    private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
@@ -91,20 +98,23 @@ public sealed class UsersController(
     }
 
     [HttpGet("search")]
+    [EnableRateLimiting(RateLimitPolicyNames.Search)]
     [ProducesResponseType<IReadOnlyList<UserSearchResultDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<UserSearchResultDto>>> SearchUsers(
         [FromQuery] string q,
         [FromQuery] int take = 20,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(q))
+        var normalizedRawQuery = TextNormalizer.NormalizeForLookup(q ?? string.Empty);
+        if (normalizedRawQuery.Length < _quotaOptions.Search.MinimumQueryLength)
         {
             return Ok(Array.Empty<UserSearchResultDto>());
         }
 
         take = Math.Clamp(take, 1, 50);
-        var normalizedHandleQuery = NormalizeHandleSearchQuery(q);
-        var normalizedDisplayQuery = NormalizeDisplaySearchQuery(q);
+        var query = q ?? string.Empty;
+        var normalizedHandleQuery = NormalizeHandleSearchQuery(query);
+        var normalizedDisplayQuery = NormalizeDisplaySearchQuery(query);
         var displayTokens = normalizedDisplayQuery
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.Ordinal)
@@ -118,6 +128,11 @@ public sealed class UsersController(
         }
 
         var currentUserId = User.GetRequiredUserId();
+        var quotaResult = await quotaService.CheckAndConsumeAsync(
+            BuildSearchQuotaConsumptions(currentUserId),
+            cancellationToken);
+        QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
+
         var baseQuery = dbContext.Users.AsNoTracking();
         IQueryable<Domain.Entities.User>? matches = null;
 
@@ -194,4 +209,20 @@ public sealed class UsersController(
     private static string NormalizeDisplaySearchQuery(string query) =>
         TextNormalizer.NormalizeForLookup(query)
             .Replace(LatinSmallLetterLWithStroke, LatinSmallLetterL);
+
+    private IReadOnlyCollection<QuotaConsumption> BuildSearchQuotaConsumptions(Guid userId) =>
+        _quotaOptions.Search.MaxSearchesPerUserPerDay <= 0
+            ? []
+            :
+            [
+                new(
+                    QuotaSubjectKeys.UserScope,
+                    QuotaSubjectKeys.User(userId),
+                    QuotaNames.SearchesPerDay,
+                    QuotaPeriodKind.Day,
+                    CountCost: 1,
+                    ByteCost: 0,
+                    CountLimit: _quotaOptions.Search.MaxSearchesPerUserPerDay,
+                    ByteLimit: null)
+            ];
 }

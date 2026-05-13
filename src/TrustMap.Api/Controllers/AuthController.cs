@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Auth;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 
 namespace TrustMap.Api.Controllers;
@@ -14,6 +16,7 @@ public sealed class AuthController(
 {
     [HttpPost("apple")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [ProducesResponseType<AuthSessionDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AuthSessionDto>> SignInWithApple(
         [FromBody] AppleAuthRequest request,
@@ -41,6 +44,7 @@ public sealed class AuthController(
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.RefreshToken)]
     [ProducesResponseType<AuthSessionDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AuthSessionDto>> Refresh(
         [FromBody] RefreshTokenRequest request,
@@ -64,6 +68,7 @@ public sealed class AuthController(
 
     [HttpPost("logout")]
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.RefreshToken)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout(
         [FromBody] LogoutRequest request,

@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Places;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
@@ -17,8 +21,12 @@ namespace TrustMap.Api.Controllers;
 public sealed class PlacesController(
     TrustMapDbContext dbContext,
     PlaceCatalogService placeCatalogService,
-    PrivacyAccessService privacyAccessService) : ControllerBase
+    PrivacyAccessService privacyAccessService,
+    IQuotaService quotaService,
+    IOptions<QuotaOptions> quotaOptionsAccessor) : ControllerBase
 {
+    private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
+
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<PlaceSummaryDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PlaceSummaryDto>>> GetPlaces(
@@ -42,21 +50,27 @@ public sealed class PlacesController(
     }
 
     [HttpGet("search")]
+    [EnableRateLimiting(RateLimitPolicyNames.Search)]
     [ProducesResponseType<IReadOnlyList<PlaceSummaryDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PlaceSummaryDto>>> SearchPlaces(
         [FromQuery] string q,
         [FromQuery] int take = 20,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(q))
+        var normalized = TextNormalizer.NormalizeForLookup(q);
+        if (normalized.Length < _quotaOptions.Search.MinimumQueryLength)
         {
             return Ok(Array.Empty<PlaceSummaryDto>());
         }
 
         take = Math.Clamp(take, 1, 50);
         var currentUserId = User.GetRequiredUserId();
+        var quotaResult = await quotaService.CheckAndConsumeAsync(
+            BuildSearchQuotaConsumptions(currentUserId),
+            cancellationToken);
+        QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
+
         var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
-        var normalized = TextNormalizer.NormalizeForLookup(q);
 
         var places = await dbContext.Places
             .AsNoTracking()
@@ -80,6 +94,22 @@ public sealed class PlacesController(
 
         return Ok(places.Select(x => x.ToSummaryDto(currentUserId)).ToArray());
     }
+
+    private IReadOnlyCollection<QuotaConsumption> BuildSearchQuotaConsumptions(Guid userId) =>
+        _quotaOptions.Search.MaxSearchesPerUserPerDay <= 0
+            ? []
+            :
+            [
+                new(
+                    QuotaSubjectKeys.UserScope,
+                    QuotaSubjectKeys.User(userId),
+                    QuotaNames.SearchesPerDay,
+                    QuotaPeriodKind.Day,
+                    CountCost: 1,
+                    ByteCost: 0,
+                    CountLimit: _quotaOptions.Search.MaxSearchesPerUserPerDay,
+                    ByteLimit: null)
+            ];
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PlaceDetailDto>(StatusCodes.Status200OK)]

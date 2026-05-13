@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Users;
+using TrustMap.Api.Quotas;
+using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
@@ -20,10 +23,13 @@ public sealed class MeController(
     HandleGenerator handleGenerator,
     ProfileQueryService profileQueryService,
     IPhotoStorage photoStorage,
+    IQuotaService quotaService,
     ILogger<MeController> logger,
-    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor) : ControllerBase
+    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor,
+    IOptions<QuotaOptions> quotaOptionsAccessor) : ControllerBase
 {
     private readonly PhotoStorageOptions _photoStorageOptions = photoStorageOptionsAccessor.Value;
+    private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
 
     [HttpGet]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
@@ -43,6 +49,7 @@ public sealed class MeController(
 
     [HttpPut("avatar")]
     [Consumes("multipart/form-data")]
+    [EnableRateLimiting(RateLimitPolicyNames.Upload)]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<UserProfileDto>> PutAvatar(
         [FromForm] UpdateAvatarRequest request,
@@ -56,13 +63,22 @@ public sealed class MeController(
 
         var previousAvatarUrl = user.AvatarUrl;
         StoredPhoto? replacementAvatar = null;
+        var quotaConsumptions = BuildAvatarUploadQuotaConsumptions(currentUserId, request.Avatar.Length);
+        var quotaPrecheck = await quotaService.CheckAsync(quotaConsumptions, cancellationToken);
+        QuotaRejection.ThrowIfRejected(HttpContext, quotaPrecheck);
 
         try
         {
             await using var stream = request.Avatar.OpenReadStream();
             replacementAvatar = await photoStorage.SaveAsync(stream, cancellationToken);
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var quotaResult = await quotaService.CheckAndConsumeAsync(quotaConsumptions, cancellationToken);
+            QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
+
             user.UpdateProfile(user.Handle, user.DisplayName, user.Bio, replacementAvatar.PublicUrl);
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
@@ -79,6 +95,10 @@ public sealed class MeController(
             await DeleteAvatarAtUrlAsync(previousAvatarUrl, cancellationToken);
         }
 
+        logger.LogInformation(
+            "Accepted avatar upload for user {UserId} with {UploadBytes} bytes.",
+            currentUserId,
+            request.Avatar.Length);
         var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
         return Ok(profile);
     }
@@ -300,4 +320,26 @@ public sealed class MeController(
             yield return $"{basePath}-thumb{variantExtension}";
         }
     }
+
+    private IReadOnlyCollection<QuotaConsumption> BuildAvatarUploadQuotaConsumptions(Guid userId, long uploadBytes) =>
+    [
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.AvatarChangesPerDay,
+            QuotaPeriodKind.Day,
+            CountCost: 1,
+            ByteCost: 0,
+            CountLimit: _quotaOptions.Uploads.MaxAvatarChangesPerUserPerDay,
+            ByteLimit: null),
+        new(
+            QuotaSubjectKeys.UserScope,
+            QuotaSubjectKeys.User(userId),
+            QuotaNames.UploadBytesPerDay,
+            QuotaPeriodKind.Day,
+            CountCost: 0,
+            ByteCost: uploadBytes,
+            CountLimit: null,
+            ByteLimit: _quotaOptions.Uploads.MaxBytesPerUserPerDay)
+    ];
 }
