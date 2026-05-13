@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
+using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
 using TrustMap.Domain.Enums;
@@ -254,36 +255,7 @@ public sealed class MeController(
     }
 
     private bool TryResolveStorageKey(string? avatarUrl, out string storageKey)
-    {
-        storageKey = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(avatarUrl))
-        {
-            return false;
-        }
-
-        var requestPath = _photoStorageOptions.RequestPath.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(requestPath))
-        {
-            requestPath = "/uploads";
-        }
-
-        var path = avatarUrl;
-
-        if (Uri.TryCreate(avatarUrl, UriKind.Absolute, out var absoluteUri))
-        {
-            path = absoluteUri.AbsolutePath;
-        }
-
-        if (!string.Equals(path, requestPath, StringComparison.OrdinalIgnoreCase)
-            && !path.StartsWith($"{requestPath}/", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        storageKey = path[requestPath.Length..].TrimStart('/');
-        return !string.IsNullOrWhiteSpace(storageKey);
-    }
+        => PhotoStorageUrl.TryResolveStorageKey(avatarUrl, _photoStorageOptions.RequestPath, out storageKey);
 
     private void EnsureValidUploadFile(IFormFile? file, string fieldName)
     {

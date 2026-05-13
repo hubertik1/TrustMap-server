@@ -44,13 +44,14 @@ public sealed class PhotoUploadSecurityTests
         var uploaded = (await response.Content.ReadFromJsonAsync<PhotoDto>(JsonDefaults.Options))!;
 
         Assert.Equal("image/jpeg", uploaded.ContentType);
-        Assert.EndsWith(".jpg", uploaded.Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal($"/media/photos/{uploaded.Id:D}", uploaded.Url);
+        Assert.DoesNotContain("/uploads/", uploaded.Url, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(originalFileName, uploaded.Url, StringComparison.OrdinalIgnoreCase);
-        Assert.True(File.Exists(GetStoragePath(factory, uploaded.Url)));
 
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
         var photo = await dbContext.Photos.SingleAsync(x => x.Id == uploaded.Id);
+        Assert.True(File.Exists(GetStoragePath(factory, photo.StorageKey)));
         Assert.EndsWith(".jpg", photo.FileName, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(originalFileName, photo.FileName, StringComparison.OrdinalIgnoreCase);
     }
@@ -168,7 +169,11 @@ public sealed class PhotoUploadSecurityTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var uploaded = (await response.Content.ReadFromJsonAsync<PhotoDto>(JsonDefaults.Options))!;
 
-        using var saved = Image.Load(GetStoragePath(factory, uploaded.Url));
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
+        var photo = await dbContext.Photos.SingleAsync(x => x.Id == uploaded.Id);
+
+        using var saved = Image.Load(GetStoragePath(factory, photo.StorageKey));
         Assert.Null(saved.Metadata.ExifProfile);
         Assert.Null(saved.Metadata.XmpProfile);
         Assert.Null(saved.Metadata.IptcProfile);
@@ -283,6 +288,74 @@ public sealed class PhotoUploadSecurityTests
         }
     }
 
+    [Fact]
+    public async Task LocalPhotoStorageOpenReadAsync_RejectsTraversalStorageKey()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), "trustmap-storage-tests", Guid.CreateVersion7().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            var storage = new LocalPhotoStorage(
+                Options.Create(new PhotoStorageOptions
+                {
+                    RootPath = rootPath,
+                    RequestPath = "/uploads"
+                }),
+                NullLogger<LocalPhotoStorage>.Instance);
+
+            var exception = await Assert.ThrowsAsync<PhotoStorageException>(
+                () => storage.OpenReadAsync("../outside.txt", "image/jpeg", CancellationToken.None));
+
+            Assert.Equal("photo_invalid_storage_key", exception.ErrorCode);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task LocalPhotoStorageOpenReadAsync_CannotReadOutsideStorageRoot()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), "trustmap-storage-tests", Guid.CreateVersion7().ToString("N"));
+        var outsidePath = Path.GetFullPath(Path.Combine(rootPath, "../outside.txt"));
+        Directory.CreateDirectory(rootPath);
+        await File.WriteAllTextAsync(outsidePath, "outside");
+
+        try
+        {
+            var storage = new LocalPhotoStorage(
+                Options.Create(new PhotoStorageOptions
+                {
+                    RootPath = rootPath,
+                    RequestPath = "/uploads"
+                }),
+                NullLogger<LocalPhotoStorage>.Instance);
+
+            var exception = await Assert.ThrowsAsync<PhotoStorageException>(
+                () => storage.OpenReadAsync("nested/../../outside.txt", "text/plain", CancellationToken.None));
+
+            Assert.Equal("photo_invalid_storage_key", exception.ErrorCode);
+            Assert.Equal("outside", await File.ReadAllTextAsync(outsidePath));
+        }
+        finally
+        {
+            if (File.Exists(outsidePath))
+            {
+                File.Delete(outsidePath);
+            }
+
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, recursive: true);
+            }
+        }
+    }
+
     private static async Task<(TestApiClient Client, Guid ReviewId)> CreateAuthenticatedPlaceReviewAsync(
         TrustMapWebApplicationFactory factory,
         string suffix)
@@ -312,10 +385,8 @@ public sealed class PhotoUploadSecurityTests
         return await client.HttpClient.PostAsync("/photos/upload", multipart);
     }
 
-    private static string GetStoragePath(TrustMapWebApplicationFactory factory, string publicUrl)
+    private static string GetStoragePath(TrustMapWebApplicationFactory factory, string storageKey)
     {
-        Assert.StartsWith("/uploads/", publicUrl, StringComparison.Ordinal);
-        var storageKey = publicUrl["/uploads/".Length..];
         return Path.Combine(factory.PhotoRootPath, storageKey.Replace('/', Path.DirectorySeparatorChar));
     }
 

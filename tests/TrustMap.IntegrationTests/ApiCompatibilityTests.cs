@@ -68,7 +68,7 @@ public sealed class ApiCompatibilityTests
         var updated = await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options);
         Assert.NotNull(updated);
         Assert.NotNull(updated.AvatarUrl);
-        Assert.StartsWith("/uploads/", updated.AvatarUrl, StringComparison.Ordinal);
+        Assert.Equal($"/media/users/{session.User.Id:D}/avatar", updated.AvatarUrl);
     }
 
     [Fact]

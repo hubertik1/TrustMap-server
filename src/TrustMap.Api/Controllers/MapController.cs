@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
+using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Map;
 using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
@@ -199,7 +200,7 @@ public sealed class MapController(
                         item.AuthorHandle,
                         item.AuthorDisplayName,
                         contributorAccess.GetValueOrDefault(item.AuthorUserId)?.CanAccess(item.AuthorProfilePictureVisibility) == true
-                            ? item.AuthorAvatarUrl
+                            ? MediaUrlBuilder.AvatarUrl(item.AuthorUserId, item.AuthorAvatarUrl)
                             : null))
                     .ToArray());
 

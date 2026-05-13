@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using TrustMap.Api.Common;
@@ -121,23 +120,6 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseHttpsRedirection();
-}
-
-var photoStorageOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PhotoStorageOptions>>().Value;
-if (string.Equals(photoStorageOptions.Provider, "local", StringComparison.OrdinalIgnoreCase))
-{
-    var rootPath = Path.GetFullPath(photoStorageOptions.RootPath, app.Environment.ContentRootPath);
-    Directory.CreateDirectory(rootPath);
-
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(rootPath),
-        RequestPath = photoStorageOptions.RequestPath,
-        OnPrepareResponse = context =>
-        {
-            context.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
-        }
-    });
 }
 
 app.UseAuthentication();

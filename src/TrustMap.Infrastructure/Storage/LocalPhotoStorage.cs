@@ -113,6 +113,40 @@ public sealed class LocalPhotoStorage : IPhotoStorage
         }
     }
 
+    public Task<StoredFileResult?> OpenReadAsync(
+        string storageKey,
+        string? contentTypeHint,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var absolutePath = ResolveStoragePathOrThrow(storageKey);
+
+        try
+        {
+            var fileStream = new FileStream(
+                absolutePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                CopyBufferSize,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            return Task.FromResult<StoredFileResult?>(new StoredFileResult(
+                fileStream,
+                ResolveContentType(storageKey, contentTypeHint),
+                fileStream.Length));
+        }
+        catch (FileNotFoundException)
+        {
+            return Task.FromResult<StoredFileResult?>(null);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Task.FromResult<StoredFileResult?>(null);
+        }
+    }
+
     public Task DeleteAsync(string storageKey, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -343,6 +377,23 @@ public sealed class LocalPhotoStorage : IPhotoStorage
 
     private static PhotoStorageException InvalidStorageKey() =>
         new("Storage key is invalid.", "photo_invalid_storage_key");
+
+    private static string ResolveContentType(string storageKey, string? contentTypeHint)
+    {
+        if (!string.IsNullOrWhiteSpace(contentTypeHint)
+            && contentTypeHint.Trim().StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return contentTypeHint.Trim();
+        }
+
+        return Path.GetExtension(storageKey).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream"
+        };
+    }
 
     private void TryDeleteResolvedFile(string storageKey)
     {

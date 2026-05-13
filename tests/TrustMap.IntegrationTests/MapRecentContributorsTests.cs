@@ -27,6 +27,7 @@ public sealed class MapRecentContributorsTests
         await MakeFriendsAsync(alice.Client, charlie.Client, charlie.Session.User.Id);
         await MakeFriendsAsync(alice.Client, dana.Client, dana.Session.User.Id);
         await MakeFriendsAsync(alice.Client, erin.Client, erin.Session.User.Id);
+        await bob.Client.ReplaceAvatarAsync(TestImages.CreateJpegBytes(), fileName: "bob-map-avatar.jpg");
 
         var placeId = await alice.Client.CreatePlaceAsync("recent-contributors", 50.0004, 19.0004);
 
@@ -67,6 +68,8 @@ public sealed class MapRecentContributorsTests
         Assert.Equal(
             new[] { "Bob", "Charlie", "Dana" },
             mapPlace.RecentContributors.Select(x => x.DisplayName).ToArray());
+        Assert.Equal($"/media/users/{bob.Session.User.Id:D}/avatar", mapPlace.RecentContributors[0].AvatarUrl);
+        Assert.DoesNotContain("/uploads/", mapPlace.RecentContributors[0].AvatarUrl, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -9,7 +9,11 @@ namespace TrustMap.Api.Features.Common;
 public static class DtoMapper
 {
     public static UserSummaryDto ToSummaryDto(this User user, bool canViewProfilePicture) =>
-        new(user.Id, user.Handle, user.DisplayName, canViewProfilePicture ? user.AvatarUrl : null);
+        new(
+            user.Id,
+            user.Handle,
+            user.DisplayName,
+            canViewProfilePicture ? MediaUrlBuilder.AvatarUrl(user.Id, user.AvatarUrl) : null);
 
     public static UserProfileDto ToProfileDto(
         this User user,
@@ -27,7 +31,7 @@ public static class DtoMapper
             user.Handle,
             user.DisplayName,
             canViewProfile ? user.Bio : null,
-            canViewProfilePicture ? user.AvatarUrl : null,
+            canViewProfilePicture ? MediaUrlBuilder.AvatarUrl(user.Id, user.AvatarUrl) : null,
             relationshipStatus,
             canViewProfile && canViewFriends ? friendCount : 0,
             canViewProfile && canViewReviews ? visiblePlaceReviewCount : 0,
@@ -67,13 +71,13 @@ public static class DtoMapper
     public static PhotoDto ToDto(this Photo photo) =>
         new(
             photo.Id,
-            photo.PublicUrl,
+            MediaUrlBuilder.PhotoUrl(photo.Id),
             photo.ContentType,
             photo.SizeBytes,
             photo.Width,
             photo.Height,
-            photo.MediumUrl,
-            photo.ThumbnailUrl,
+            MediaUrlBuilder.PhotoVariantUrl(photo.Id, photo.MediumStorageKey, "medium"),
+            MediaUrlBuilder.PhotoVariantUrl(photo.Id, photo.ThumbnailStorageKey, "thumbnail"),
             photo.CreatedAt);
 
     public static PlaceReviewDto ToDto(this PlaceReview review, Guid currentUserId, bool canViewAuthorProfilePicture) =>
