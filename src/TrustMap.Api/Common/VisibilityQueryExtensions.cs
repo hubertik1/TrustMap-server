@@ -5,6 +5,31 @@ namespace TrustMap.Api.Common;
 
 public static class VisibilityQueryExtensions
 {
+    public static IQueryable<Place> VisibleToViewer(
+        this IQueryable<Place> query,
+        Guid viewerUserId,
+        IReadOnlyCollection<Guid> friendIds,
+        IReadOnlyCollection<Guid> friendOfFriendIds)
+    {
+        return query.Where(x =>
+            x.IsPubliclyListed
+            || x.SourceType == PlaceSourceType.ProviderVenue
+            || x.SourceType == PlaceSourceType.ApprovedPublic
+            || (x.SourceType == PlaceSourceType.CustomPin && x.CreatedByUserId == viewerUserId)
+            || x.PlaceReviews.Any(review =>
+                review.AuthorUserId == viewerUserId
+                || review.Visibility == VisibilityLevel.Public
+                || (review.Visibility == VisibilityLevel.Friends && friendIds.Contains(review.AuthorUserId))
+                || (review.Visibility == VisibilityLevel.FriendsOfFriends
+                    && (friendIds.Contains(review.AuthorUserId) || friendOfFriendIds.Contains(review.AuthorUserId))))
+            || x.DishReviews.Any(review =>
+                review.AuthorUserId == viewerUserId
+                || review.Visibility == VisibilityLevel.Public
+                || (review.Visibility == VisibilityLevel.Friends && friendIds.Contains(review.AuthorUserId))
+                || (review.Visibility == VisibilityLevel.FriendsOfFriends
+                    && (friendIds.Contains(review.AuthorUserId) || friendOfFriendIds.Contains(review.AuthorUserId)))));
+    }
+
     public static IQueryable<PlaceReview> VisibleToViewer(
         this IQueryable<PlaceReview> query,
         Guid viewerUserId,

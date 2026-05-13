@@ -20,6 +20,7 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
             : null;
 
         var existing = await FindByIdentityAsync(
+            currentUserId,
             request,
             sourceType,
             normalizedProvider,
@@ -52,6 +53,7 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
         catch (DbUpdateException)
         {
             var retried = await FindByIdentityAsync(
+                currentUserId,
                 request,
                 sourceType,
                 normalizedProvider,
@@ -99,6 +101,7 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
     }
 
     private Task<Place?> FindByIdentityAsync(
+        Guid currentUserId,
         CreatePlaceRequest request,
         PlaceSourceType sourceType,
         string? provider,
@@ -114,11 +117,18 @@ public sealed class PlaceCatalogService(TrustMapDbContext dbContext)
             request.Longitude);
 
         return dbContext.Places.FirstOrDefaultAsync(
-            x => x.SourceType == sourceType
-                 && ((sourceType == PlaceSourceType.ProviderVenue
-                        && x.Provider == provider
-                        && x.ProviderPlaceId == providerPlaceId)
-                     || x.IdentityFingerprint == fingerprint),
+            x => (sourceType == PlaceSourceType.ProviderVenue
+                    && ((x.SourceType == PlaceSourceType.ProviderVenue
+                            && x.Provider == provider
+                            && x.ProviderPlaceId == providerPlaceId)
+                        || ((x.IsPubliclyListed
+                                || x.SourceType == PlaceSourceType.ProviderVenue
+                                || x.SourceType == PlaceSourceType.ApprovedPublic)
+                            && x.IdentityFingerprint == fingerprint)))
+                 || (sourceType == PlaceSourceType.CustomPin
+                    && x.SourceType == PlaceSourceType.CustomPin
+                    && x.CreatedByUserId == currentUserId
+                    && x.IdentityFingerprint == fingerprint),
             cancellationToken);
     }
 }

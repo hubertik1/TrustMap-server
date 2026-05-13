@@ -25,9 +25,11 @@ public sealed class Place
         Guid? createdByUserId)
     {
         Id = id;
-        CreatedByUserId = createdByUserId;
         CreatedAt = DateTime.UtcNow;
         Update(name, address, city, countryCode, latitude, longitude, provider, providerPlaceId);
+        CreatedByUserId = IsCustomPin
+            ? createdByUserId ?? throw new InvalidOperationException("Custom places must have a creator.")
+            : null;
     }
 
     public Guid Id { get; private set; }
@@ -56,6 +58,8 @@ public sealed class Place
 
     public PlaceSourceType SourceType { get; private set; }
 
+    public bool IsPubliclyListed { get; private set; }
+
     public string? CustomDisplayName { get; private set; }
 
     public string? NormalizedCustomDisplayName { get; private set; }
@@ -83,6 +87,8 @@ public sealed class Place
     public ICollection<PlaceCategoryAssignment> CategoryAssignments { get; } = new List<PlaceCategoryAssignment>();
 
     public bool IsCustomPin => SourceType == PlaceSourceType.CustomPin;
+
+    public bool IsPublicCatalogPlace => IsPubliclyListed || IsPublicCatalogSource(SourceType);
 
     public string DisplayName => ResolveDisplayName(SourceType, Name, Address, CustomDisplayName);
 
@@ -115,6 +121,7 @@ public sealed class Place
         Latitude = latitude;
         Longitude = longitude;
         SourceType = ResolveSourceType(provider, providerPlaceId);
+        IsPubliclyListed = IsPublicCatalogSource(SourceType);
         Provider = SourceType == PlaceSourceType.ProviderVenue
             ? provider!.Trim().ToLowerInvariant()
             : null;
@@ -162,6 +169,9 @@ public sealed class Place
             ? PlaceSourceType.ProviderVenue
             : PlaceSourceType.CustomPin;
     }
+
+    public static bool IsPublicCatalogSource(PlaceSourceType sourceType) =>
+        sourceType is PlaceSourceType.ProviderVenue or PlaceSourceType.ApprovedPublic;
 
     public static string ResolveDisplayName(
         PlaceSourceType sourceType,

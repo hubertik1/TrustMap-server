@@ -109,7 +109,7 @@ public sealed class CustomPlaceNamingTests
                 DisplayName = "Should Fail"
             });
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
         var detail = await aliceClient.HttpClient.GetFromJsonAsync<PlaceDetailDto>($"/places/{created.Id}", JsonDefaults.Options);
         Assert.NotNull(detail);

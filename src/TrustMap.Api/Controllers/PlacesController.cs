@@ -26,10 +26,12 @@ public sealed class PlacesController(
         CancellationToken cancellationToken = default)
     {
         var currentUserId = User.GetRequiredUserId();
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
         take = Math.Clamp(take, 1, 100);
 
         var places = await dbContext.Places
             .AsNoTracking()
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .OrderBy(x => x.SourceType == PlaceSourceType.CustomPin
                 ? x.NormalizedCustomDisplayName ?? x.NormalizedAddress
                 : x.NormalizedName)
@@ -53,10 +55,12 @@ public sealed class PlacesController(
 
         take = Math.Clamp(take, 1, 50);
         var currentUserId = User.GetRequiredUserId();
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
         var normalized = TextNormalizer.NormalizeForLookup(q);
 
         var places = await dbContext.Places
             .AsNoTracking()
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .Where(x =>
                 x.NormalizedName.Contains(normalized)
                 || x.NormalizedAddress.Contains(normalized)
@@ -86,6 +90,7 @@ public sealed class PlacesController(
 
         var place = await dbContext.Places
             .AsNoTracking()
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("Place not found.", "place_not_found");
 
@@ -190,6 +195,16 @@ public sealed class PlacesController(
         CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+        var canViewPlace = await dbContext.Places
+            .AsNoTracking()
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
+            .AnyAsync(x => x.Id == id, cancellationToken);
+        if (!canViewPlace)
+        {
+            throw ApiException.NotFound("Place not found.", "place_not_found");
+        }
+
         var place = await placeCatalogService.UpdateCustomDisplayNameAsync(currentUserId, id, request, cancellationToken);
         return Ok(place.ToSummaryDto(currentUserId));
     }

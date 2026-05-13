@@ -56,7 +56,13 @@ public sealed class MapPlaceSearchTextTests
 
         var alice = await CreateAuthenticatedClientAsync(factory, "search-private-alice", "Alice");
         var bob = await CreateAuthenticatedClientAsync(factory, "search-private-bob", "Bob");
-        var placeId = await alice.Client.CreatePlaceAsync("private-search-leak", 50.1003, 19.1003);
+        var place = await alice.Client.CreatePlaceSummaryAsync(
+            "private-search-leak",
+            50.1003,
+            19.1003,
+            provider: "test-provider",
+            providerPlaceId: "private-search-leak");
+        var placeId = place.Id;
 
         await alice.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Private, 5, "visible anchor");
         await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Private, 1, "secret ramen");
@@ -81,7 +87,13 @@ public sealed class MapPlaceSearchTextTests
 
         await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
 
-        var placeId = await alice.Client.CreatePlaceAsync("friends-search", 50.1004, 19.1004);
+        var place = await alice.Client.CreatePlaceSummaryAsync(
+            "friends-search",
+            50.1004,
+            19.1004,
+            provider: "test-provider",
+            providerPlaceId: "friends-search");
+        var placeId = place.Id;
 
         await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 5, "friend phrase pierogi");
         await charlie.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 1, "nonfriend hidden phrase");

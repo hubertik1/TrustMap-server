@@ -24,17 +24,22 @@ internal sealed class PlaceConfiguration : IEntityTypeConfiguration<Place>
             .HasConversion<string>()
             .HasMaxLength(40)
             .IsRequired();
+        builder.Property(x => x.IsPubliclyListed).IsRequired();
         builder.Property(x => x.CustomDisplayName).HasMaxLength(200);
         builder.Property(x => x.NormalizedCustomDisplayName).HasMaxLength(200);
         builder.Property(x => x.IdentityFingerprint).HasMaxLength(64).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 
-        builder.HasIndex(x => x.IdentityFingerprint).IsUnique();
+        builder.HasIndex(x => x.IdentityFingerprint);
         builder.HasIndex(x => new { x.Provider, x.ProviderPlaceId }).IsUnique();
+        builder.HasIndex(x => x.SourceType);
+        builder.HasIndex(x => x.IsPubliclyListed);
         builder.HasIndex(x => x.NormalizedName);
         builder.HasIndex(x => x.NormalizedCustomDisplayName);
         builder.HasIndex(x => new { x.Latitude, x.Longitude });
+        builder.HasIndex(x => x.CreatedByUserId);
+        builder.HasIndex(x => new { x.CreatedByUserId, x.IdentityFingerprint }).IsUnique();
 
         builder.HasOne(x => x.CreatedByUser)
             .WithMany()

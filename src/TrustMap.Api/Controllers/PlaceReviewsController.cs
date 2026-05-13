@@ -120,7 +120,10 @@ public sealed class PlaceReviewsController(
         CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
-        var place = await dbContext.Places.SingleOrDefaultAsync(x => x.Id == request.PlaceId, cancellationToken)
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+        var place = await dbContext.Places
+            .VisibleToViewer(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
+            .SingleOrDefaultAsync(x => x.Id == request.PlaceId, cancellationToken)
             ?? throw ApiException.NotFound("Place not found.", "place_not_found");
 
         var exists = await dbContext.PlaceReviews.AnyAsync(

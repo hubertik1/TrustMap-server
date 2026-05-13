@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TrustMap.Api.Common;
 using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 
@@ -62,6 +63,19 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
 
         return access.CanAccess(visibility.ProfileVisibility)
             && access.CanAccess(visibility.ReviewVisibility);
+    }
+
+    public async Task<bool> CanViewerAccessPlaceAsync(
+        Guid viewerUserId,
+        Guid placeId,
+        CancellationToken cancellationToken)
+    {
+        var socialAccess = await GetViewerSocialAccessAsync(viewerUserId, cancellationToken);
+
+        return await dbContext.Places
+            .AsNoTracking()
+            .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
+            .AnyAsync(x => x.Id == placeId, cancellationToken);
     }
 
     public async Task<Dictionary<Guid, ViewerAccess>> GetAccessMapAsync(

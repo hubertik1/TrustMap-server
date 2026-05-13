@@ -29,7 +29,13 @@ public sealed class MapRecentContributorsTests
         await MakeFriendsAsync(alice.Client, erin.Client, erin.Session.User.Id);
         await bob.Client.ReplaceAvatarAsync(TestImages.CreateJpegBytes(), fileName: "bob-map-avatar.jpg");
 
-        var placeId = await alice.Client.CreatePlaceAsync("recent-contributors", 50.0004, 19.0004);
+        var place = await alice.Client.CreatePlaceSummaryAsync(
+            "recent-contributors",
+            50.0004,
+            19.0004,
+            provider: "test-provider",
+            providerPlaceId: "recent-contributors");
+        var placeId = place.Id;
 
         var aliceReviewId = await alice.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Private, 4, "Alice place");
         var bobReviewId = await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 5, "Bob place");
@@ -89,7 +95,13 @@ public sealed class MapRecentContributorsTests
 
         await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
 
-        var placeId = await alice.Client.CreatePlaceAsync("visibility-contributors", 50.0005, 19.0005);
+        var place = await alice.Client.CreatePlaceSummaryAsync(
+            "visibility-contributors",
+            50.0005,
+            19.0005,
+            provider: "test-provider",
+            providerPlaceId: "visibility-contributors");
+        var placeId = place.Id;
 
         await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 5, "Bob visible");
         await charlie.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 1, "Charlie hidden");

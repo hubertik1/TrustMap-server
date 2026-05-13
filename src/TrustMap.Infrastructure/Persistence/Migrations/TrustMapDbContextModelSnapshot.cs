@@ -565,6 +565,9 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsPubliclyListed")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double>("Latitude")
                         .HasColumnType("REAL");
 
@@ -612,12 +615,18 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomDisplayNameSetByUserId");
 
-                    b.HasIndex("IdentityFingerprint")
-                        .IsUnique();
+                    b.HasIndex("IdentityFingerprint");
+
+                    b.HasIndex("IsPubliclyListed");
 
                     b.HasIndex("NormalizedCustomDisplayName");
 
                     b.HasIndex("NormalizedName");
+
+                    b.HasIndex("SourceType");
+
+                    b.HasIndex("CreatedByUserId", "IdentityFingerprint")
+                        .IsUnique();
 
                     b.HasIndex("Latitude", "Longitude");
 

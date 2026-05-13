@@ -43,7 +43,10 @@ public sealed class MapPlaceCurrentUserReviewTests
         await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
 
         var placeId = await alice.Client.CreatePlaceAsync("mine-created-no-review", 50.2002, 19.2002);
+        var aliceAnchorReviewId = await alice.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 4, "Alice temporary access anchor");
         await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 5, "Bob visible review");
+        var deleteAnchorResponse = await alice.Client.HttpClient.DeleteAsync($"/place-reviews/{aliceAnchorReviewId}");
+        deleteAnchorResponse.EnsureSuccessStatusCode();
 
         var mapPlace = await FetchSingleMapPlaceAsync(alice.Client, placeId);
 
@@ -61,8 +64,10 @@ public sealed class MapPlaceCurrentUserReviewTests
         var bob = await CreateAuthenticatedClientAsync(factory, "mine-dish-only-bob", "Bob");
 
         var placeId = await bob.Client.CreatePlaceAsync("mine-dish-only", 50.2003, 19.2003);
-        await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Private, 4, "Bob restaurant anchor");
+        var bobAnchorReviewId = await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Public, 4, "Bob restaurant anchor");
         await alice.Client.CreateDishReviewAsync(placeId, placeReviewId: null, VisibilityLevel.Private, "Hot dog", 5);
+        var deleteAnchorResponse = await bob.Client.HttpClient.DeleteAsync($"/place-reviews/{bobAnchorReviewId}");
+        deleteAnchorResponse.EnsureSuccessStatusCode();
 
         var mapPlace = await FetchSingleMapPlaceAsync(alice.Client, placeId);
 
