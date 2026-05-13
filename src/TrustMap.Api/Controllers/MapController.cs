@@ -289,6 +289,188 @@ public sealed class MapController(
         return Ok(result);
     }
 
+    [HttpGet("pins")]
+    [ProducesResponseType<IReadOnlyList<MapPinDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<MapPinDto>>> GetPins(
+        [FromQuery] double? north,
+        [FromQuery] double? south,
+        [FromQuery] double? east,
+        [FromQuery] double? west,
+        CancellationToken cancellationToken = default)
+    {
+        var bounds = RequireBounds(north, south, east, west);
+        var currentUserId = User.GetRequiredUserId();
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+
+        var pins = await BuildMapPinsAsync(
+            currentUserId,
+            socialAccess,
+            bounds,
+            placeId: null,
+            cancellationToken);
+
+        return Ok(pins
+            .OrderByDescending(x => x.LatestActivityAtUtc)
+            .ToArray());
+    }
+
+    [HttpGet("pins/{placeId:guid}")]
+    [ProducesResponseType<MapPinDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<MapPinDto?>> GetPin(
+        Guid placeId,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(currentUserId, cancellationToken);
+
+        var pins = await BuildMapPinsAsync(
+            currentUserId,
+            socialAccess,
+            bounds: null,
+            placeId,
+            cancellationToken);
+
+        var pin = pins.SingleOrDefault();
+        return pin is null
+            ? new JsonResult(null)
+            : Ok(pin);
+    }
+
+    private async Task<IReadOnlyList<MapPinDto>> BuildMapPinsAsync(
+        Guid currentUserId,
+        ViewerSocialAccess socialAccess,
+        MapQueryBounds? bounds,
+        Guid? placeId,
+        CancellationToken cancellationToken)
+    {
+        var placeReviewQuery = dbContext.PlaceReviews
+            .AsNoTracking()
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds);
+
+        var dishReviewQuery = dbContext.DishReviews
+            .AsNoTracking()
+            .VisibleInSocialScope(currentUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds);
+
+        if (bounds is not null)
+        {
+            placeReviewQuery = placeReviewQuery.Where(x =>
+                x.Place.Latitude <= bounds.North
+                && x.Place.Latitude >= bounds.South
+                && x.Place.Longitude <= bounds.East
+                && x.Place.Longitude >= bounds.West);
+
+            dishReviewQuery = dishReviewQuery.Where(x =>
+                x.Place.Latitude <= bounds.North
+                && x.Place.Latitude >= bounds.South
+                && x.Place.Longitude <= bounds.East
+                && x.Place.Longitude >= bounds.West);
+        }
+
+        if (placeId.HasValue)
+        {
+            placeReviewQuery = placeReviewQuery.Where(x => x.PlaceId == placeId.Value);
+            dishReviewQuery = dishReviewQuery.Where(x => x.PlaceId == placeId.Value);
+        }
+
+        var placeActivities = await placeReviewQuery
+            .Select(x => new MapPinActivitySeed(
+                x.PlaceId,
+                x.AuthorUserId,
+                x.Rating,
+                x.UpdatedAt,
+                x.Place.Name,
+                x.Place.CustomDisplayName,
+                x.Place.SourceType,
+                x.Place.Address,
+                x.Place.Latitude,
+                x.Place.Longitude))
+            .ToListAsync(cancellationToken);
+
+        var dishActivities = await dishReviewQuery
+            .Select(x => new MapPinActivitySeed(
+                x.PlaceId,
+                x.AuthorUserId,
+                x.Rating,
+                x.UpdatedAt,
+                x.Place.Name,
+                x.Place.CustomDisplayName,
+                x.Place.SourceType,
+                x.Place.Address,
+                x.Place.Latitude,
+                x.Place.Longitude))
+            .ToListAsync(cancellationToken);
+
+        var activities = placeActivities.Concat(dishActivities).ToArray();
+        if (activities.Length == 0)
+        {
+            return [];
+        }
+
+        var averagePlaceRatingsByPlace = placeActivities
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(x => x.Key, x => (double?)x.Average(item => item.Rating));
+
+        var grouped = activities
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(
+                x => x.Key,
+                x => new MapPinAggregation(
+                    Place.ResolveDisplayName(x.First().SourceType, x.First().Name, x.First().Address, x.First().CustomDisplayName),
+                    x.First().Latitude,
+                    x.First().Longitude,
+                    averagePlaceRatingsByPlace.GetValueOrDefault(x.Key),
+                    x.Count(),
+                    x.Select(item => item.AuthorUserId).ToHashSet(),
+                    x.Any(item => item.AuthorUserId == currentUserId),
+                    x.Max(item => item.UpdatedAt)));
+
+        var placeIds = grouped.Keys.ToList();
+        var visibleUserIds = socialAccess.FriendIds.Append(currentUserId).ToHashSet();
+
+        var categoryAssignments = await dbContext.PlaceCategoryAssignments
+            .AsNoTracking()
+            .Where(x =>
+                placeIds.Contains(x.PlaceId)
+                && visibleUserIds.Contains(x.AssignedByUserId)
+                && !x.Category.IsDeleted)
+            .Select(x => new MapPinCategorySeed(x.PlaceId, x.AssignedByUserId, x.CategoryId))
+            .ToListAsync(cancellationToken);
+
+        var categoryIdsByPlace = categoryAssignments
+            .Where(x => grouped.TryGetValue(x.PlaceId, out var aggregation) && aggregation.Contributors.Contains(x.AssignedByUserId))
+            .GroupBy(x => x.PlaceId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(item => item.CategoryId)
+                    .Distinct()
+                    .OrderBy(item => item)
+                    .ToArray());
+
+        return grouped
+            .Select(x => new MapPinDto(
+                x.Key,
+                x.Value.DisplayName,
+                x.Value.Latitude,
+                x.Value.Longitude,
+                x.Value.AverageRating,
+                x.Value.ReviewCount,
+                x.Value.Contributors.Count,
+                categoryIdsByPlace.GetValueOrDefault(x.Key, []),
+                x.Value.IsReviewedByCurrentUser,
+                x.Value.LatestActivity))
+            .ToArray();
+    }
+
+    private static MapQueryBounds RequireBounds(double? north, double? south, double? east, double? west)
+    {
+        if (!north.HasValue || !south.HasValue || !east.HasValue || !west.HasValue)
+        {
+            throw ApiException.BadRequest("Map pins require north, south, east, and west bounds.", "map_invalid_bounds");
+        }
+
+        return new MapQueryBounds(north.Value, south.Value, east.Value, west.Value);
+    }
+
     private static IReadOnlyDictionary<Guid, string> BuildSearchTextByPlace(IEnumerable<MapSearchTextSeed> seeds)
     {
         return seeds
@@ -373,9 +555,42 @@ file sealed record MapCategorySeed(
     Guid AssignedByUserId,
     string CategoryName);
 
+file sealed record MapPinActivitySeed(
+    Guid PlaceId,
+    Guid AuthorUserId,
+    double Rating,
+    DateTime UpdatedAt,
+    string Name,
+    string? CustomDisplayName,
+    PlaceSourceType SourceType,
+    string Address,
+    double Latitude,
+    double Longitude);
+
+file sealed record MapPinCategorySeed(
+    Guid PlaceId,
+    Guid AssignedByUserId,
+    Guid CategoryId);
+
 file sealed record MapAggregation(
     MapActivitySeed Place,
     int PlaceReviewCount,
     double? AverageRating,
     DateTime LatestActivity,
     HashSet<Guid> Contributors);
+
+file sealed record MapPinAggregation(
+    string DisplayName,
+    double Latitude,
+    double Longitude,
+    double? AverageRating,
+    int ReviewCount,
+    HashSet<Guid> Contributors,
+    bool IsReviewedByCurrentUser,
+    DateTime LatestActivity);
+
+sealed record MapQueryBounds(
+    double North,
+    double South,
+    double East,
+    double West);

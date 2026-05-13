@@ -27,3 +27,15 @@ public sealed record MapPlaceDto(
 
     public bool IsReviewedByCurrentUser { get; init; }
 }
+
+public sealed record MapPinDto(
+    Guid PlaceId,
+    string DisplayName,
+    double Latitude,
+    double Longitude,
+    double? AverageRating,
+    int ReviewCount,
+    int ContributorCount,
+    IReadOnlyList<Guid> CategoryIds,
+    bool IsReviewedByCurrentUser,
+    DateTime? LatestActivityAtUtc);
