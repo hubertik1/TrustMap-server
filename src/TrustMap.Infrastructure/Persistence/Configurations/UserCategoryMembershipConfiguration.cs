@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
+using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Infrastructure.Persistence.Configurations;
 
@@ -8,7 +10,12 @@ internal sealed class UserCategoryMembershipConfiguration : IEntityTypeConfigura
 {
     public void Configure(EntityTypeBuilder<UserCategoryMembership> builder)
     {
-        builder.ToTable("user_category_memberships");
+        builder.ToTable("user_category_memberships", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_user_category_memberships_source",
+                EnumCheckConstraintSql.IntegerValues<CategoryMembershipSource>("Source"));
+        });
 
         builder.HasKey(x => new { x.UserId, x.CategoryId });
 

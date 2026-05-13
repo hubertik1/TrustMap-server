@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -41,8 +42,32 @@ builder.Services.Configure<FormOptions>(options =>
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Public API enum values are strings; numeric enum JSON is rejected during request binding.
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
     });
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => SanitizeValidationError(error.ErrorMessage))
+                    .ToArray());
+
+        var problemDetails = new ValidationProblemDetails(errors)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "One or more validation errors occurred.",
+            Instance = context.HttpContext.Request.Path
+        };
+        problemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+        return new BadRequestObjectResult(problemDetails);
+    };
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -153,4 +178,17 @@ if (databaseOptions.ApplyMigrationsOnStartup)
 
 app.Run();
 
-public partial class Program;
+public partial class Program
+{
+    private static string SanitizeValidationError(string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return "The value is invalid.";
+        }
+
+        return errorMessage.Contains("could not be converted", StringComparison.OrdinalIgnoreCase)
+            ? "The value is invalid or has the wrong JSON type."
+            : errorMessage;
+    }
+}

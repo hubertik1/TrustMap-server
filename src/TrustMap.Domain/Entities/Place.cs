@@ -171,7 +171,7 @@ public sealed class Place
     }
 
     public static bool IsPublicCatalogSource(PlaceSourceType sourceType) =>
-        sourceType is PlaceSourceType.ProviderVenue or PlaceSourceType.ApprovedPublic;
+        IsPublicCatalogSourceChecked(sourceType);
 
     public static string ResolveDisplayName(
         PlaceSourceType sourceType,
@@ -179,6 +179,8 @@ public sealed class Place
         string address,
         string? customDisplayName)
     {
+        EnumGuard.EnsureDefined(sourceType, nameof(sourceType));
+
         if (!string.IsNullOrWhiteSpace(customDisplayName))
         {
             return customDisplayName.Trim();
@@ -187,6 +189,12 @@ public sealed class Place
         return sourceType == PlaceSourceType.CustomPin
             ? address.Trim()
             : name.Trim();
+    }
+
+    private static bool IsPublicCatalogSourceChecked(PlaceSourceType sourceType)
+    {
+        EnumGuard.EnsureDefined(sourceType, nameof(sourceType));
+        return sourceType is PlaceSourceType.ProviderVenue or PlaceSourceType.ApprovedPublic;
     }
 
     public static string BuildFingerprint(

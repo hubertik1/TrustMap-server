@@ -208,7 +208,8 @@ public sealed class ApiCompatibilityTests
                 Rating = 5,
                 Title = "Duplicate",
                 Body = "Should fail"
-            });
+            },
+            JsonDefaults.Options);
 
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
     }
@@ -260,7 +261,8 @@ public sealed class ApiCompatibilityTests
                 Rating = 5,
                 Title = "Default category works",
                 Body = "Should succeed"
-            });
+            },
+            JsonDefaults.Options);
 
         placeReviewResponse.EnsureSuccessStatusCode();
         var review = (await placeReviewResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -292,7 +294,8 @@ public sealed class ApiCompatibilityTests
                 DishName = "Burger",
                 Rating = 4,
                 Body = "Should fail"
-            });
+            },
+            JsonDefaults.Options);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

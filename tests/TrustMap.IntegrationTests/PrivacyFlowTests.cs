@@ -345,7 +345,8 @@ public sealed class PrivacyFlowTests
                 FriendListVisibility = friendListVisibility,
                 ProfileVisibility = profileVisibility,
                 ProfilePictureVisibility = profilePictureVisibility
-            });
+            },
+            JsonDefaults.Options);
 
     private static async Task<IReadOnlyList<PlaceReviewDto>> FetchPlaceReviewsAsync(TestApiClient client, Guid authorUserId)
     {

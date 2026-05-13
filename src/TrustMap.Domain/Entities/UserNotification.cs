@@ -1,3 +1,4 @@
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
@@ -23,6 +24,7 @@ public sealed class UserNotification
             throw new InvalidOperationException("Cannot create a notification for the acting user.");
         }
 
+        EnumGuard.EnsureDefined(type, nameof(type));
         EnsureValidReferences(type, placeId, placeReviewId, dishReviewId, friendRequestId);
 
         Id = id;

@@ -9,7 +9,24 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("users");
+        builder.ToTable("users", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_users_review_visibility",
+                EnumCheckConstraintSql.IntegerValues<VisibilityLevel>("ReviewVisibility"));
+            tableBuilder.HasCheckConstraint(
+                "CK_users_friend_list_visibility",
+                EnumCheckConstraintSql.IntegerValues<VisibilityLevel>("FriendListVisibility"));
+            tableBuilder.HasCheckConstraint(
+                "CK_users_profile_visibility",
+                EnumCheckConstraintSql.IntegerValues<VisibilityLevel>("ProfileVisibility"));
+            tableBuilder.HasCheckConstraint(
+                "CK_users_profile_picture_visibility",
+                EnumCheckConstraintSql.IntegerValues<VisibilityLevel>("ProfilePictureVisibility"));
+            tableBuilder.HasCheckConstraint(
+                "CK_users_status",
+                EnumCheckConstraintSql.IntegerValues<UserAccountStatus>("Status"));
+        });
 
         builder.HasKey(x => x.Id);
 

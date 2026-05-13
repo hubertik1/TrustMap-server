@@ -237,7 +237,8 @@ public sealed class CategoryFlowTests
                 Rating = 4,
                 Title = "Hidden default",
                 Body = "Should not be selectable"
-            });
+            },
+            JsonDefaults.Options);
         Assert.Equal(HttpStatusCode.Forbidden, createResponse.StatusCode);
 
         var secondPlaceId = await client.CreatePlaceAsync("hidden-default-update");
@@ -257,7 +258,8 @@ public sealed class CategoryFlowTests
                 Rating = 5,
                 Title = "Still hidden",
                 Body = "Should not become selectable"
-            });
+            },
+            JsonDefaults.Options);
         Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
     }
 

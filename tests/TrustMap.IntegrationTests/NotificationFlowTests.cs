@@ -277,7 +277,8 @@ public sealed class NotificationFlowTests
                 Rating = 4,
                 Title = "Review",
                 Body = "Will hide"
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         Assert.Empty((await FetchNotificationsAsync(bobClient)).Items);

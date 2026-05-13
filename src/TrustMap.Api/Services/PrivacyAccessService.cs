@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Common;
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
 
@@ -11,8 +12,11 @@ public sealed record ViewerAccess(
     bool IsDirectFriend,
     bool IsFriendOfFriend)
 {
-    public bool CanAccess(VisibilityLevel visibility) =>
-        visibility switch
+    public bool CanAccess(VisibilityLevel visibility)
+    {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
+
+        return visibility switch
         {
             VisibilityLevel.Public => true,
             VisibilityLevel.FriendsOfFriends => IsSelf || IsDirectFriend || IsFriendOfFriend,
@@ -20,6 +24,7 @@ public sealed record ViewerAccess(
             VisibilityLevel.Private => IsSelf,
             _ => false
         };
+    }
 }
 
 public sealed record ViewerSocialAccess(

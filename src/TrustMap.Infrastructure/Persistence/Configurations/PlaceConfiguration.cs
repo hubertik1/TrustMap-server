@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
+using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Infrastructure.Persistence.Configurations;
 
@@ -8,7 +10,12 @@ internal sealed class PlaceConfiguration : IEntityTypeConfiguration<Place>
 {
     public void Configure(EntityTypeBuilder<Place> builder)
     {
-        builder.ToTable("places");
+        builder.ToTable("places", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_places_source_type",
+                EnumCheckConstraintSql.StringNames<PlaceSourceType>("SourceType"));
+        });
 
         builder.HasKey(x => x.Id);
 

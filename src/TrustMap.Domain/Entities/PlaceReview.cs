@@ -1,3 +1,4 @@
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
@@ -52,6 +53,7 @@ public sealed class PlaceReview
 
     public bool HasChanges(VisibilityLevel visibility, int rating, string? title, string? body)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
         EnsureValidRating(rating);
 
         return Visibility != visibility
@@ -62,6 +64,7 @@ public sealed class PlaceReview
 
     public bool Update(VisibilityLevel visibility, int rating, string? title, string? body)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
         EnsureValidRating(rating);
 
         var normalizedTitle = NormalizeTitle(title);

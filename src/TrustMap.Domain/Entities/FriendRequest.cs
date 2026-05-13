@@ -1,3 +1,4 @@
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
@@ -71,6 +72,7 @@ public sealed class FriendRequest
 
     private void Transition(FriendRequestStatus status)
     {
+        EnumGuard.EnsureDefined(status, nameof(status));
         Status = status;
         ActiveRequestKey = null;
         ResolvedAt = DateTime.UtcNow;
@@ -79,6 +81,7 @@ public sealed class FriendRequest
 
     private void EnsurePending()
     {
+        EnumGuard.EnsureDefined(Status, nameof(Status));
         if (Status != FriendRequestStatus.Pending)
         {
             throw new InvalidOperationException("Friend request is no longer pending.");

@@ -12,6 +12,9 @@ internal sealed class UserNotificationConfiguration : IEntityTypeConfiguration<U
         builder.ToTable("notifications", tableBuilder =>
         {
             tableBuilder.HasCheckConstraint(
+                "CK_notifications_type",
+                EnumCheckConstraintSql.IntegerValues<NotificationType>("Type"));
+            tableBuilder.HasCheckConstraint(
                 "CK_notifications_references_match_type",
                 $"""
                 ("Type" = {(int)NotificationType.PlaceReviewAdded}

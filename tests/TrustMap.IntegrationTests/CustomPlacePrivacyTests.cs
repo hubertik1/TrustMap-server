@@ -311,7 +311,8 @@ public sealed class CustomPlacePrivacyTests
                 Rating = 5,
                 Title = "Review",
                 Body = body
-            });
+            },
+            JsonDefaults.Options);
 
     private static Task<HttpResponseMessage> CreateDishReviewRawAsync(
         TestApiClient client,
@@ -329,5 +330,6 @@ public sealed class CustomPlacePrivacyTests
                 DishName = dishName,
                 Rating = 5,
                 Body = "Dish body"
-            });
+            },
+            JsonDefaults.Options);
 }

@@ -34,7 +34,8 @@ public sealed class ReviewCrudTests
                 Rating = 5,
                 Title = "Updated",
                 Body = "Excellent"
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -72,7 +73,8 @@ public sealed class ReviewCrudTests
                 Rating = 4,
                 Title = " Review ",
                 Body = " Nice "
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -109,7 +111,8 @@ public sealed class ReviewCrudTests
                 Rating = 5,
                 Title = "Review",
                 Body = "Excellent"
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -163,7 +166,8 @@ public sealed class ReviewCrudTests
                 Rating = 4,
                 Title = "Solid",
                 Body = "Works for bars"
-            });
+            },
+            JsonDefaults.Options);
 
         response.EnsureSuccessStatusCode();
         var review = (await response.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -196,7 +200,8 @@ public sealed class ReviewCrudTests
                 Body = "Still great",
                 PriceAmount = 29.90m,
                 CurrencyCode = "PLN"
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
@@ -235,7 +240,8 @@ public sealed class ReviewCrudTests
                 Body = "Tasty",
                 PriceAmount = 29.90m,
                 CurrencyCode = "pln"
-            });
+            },
+            JsonDefaults.Options);
         createResponse.EnsureSuccessStatusCode();
         var created = (await createResponse.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
 
@@ -253,7 +259,8 @@ public sealed class ReviewCrudTests
                 Body = " Tasty ",
                 PriceAmount = 29.900m,
                 CurrencyCode = "pln"
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
@@ -293,7 +300,8 @@ public sealed class ReviewCrudTests
                 Body = "Body for Pierogi",
                 PriceAmount = null,
                 CurrencyCode = null
-            });
+            },
+            JsonDefaults.Options);
 
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;

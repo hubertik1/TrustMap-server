@@ -108,6 +108,7 @@ public sealed class User
 
     public void SetStatus(UserAccountStatus status)
     {
+        EnumGuard.EnsureDefined(status, nameof(status));
         Status = status;
         UpdatedAt = DateTime.UtcNow;
     }
@@ -118,10 +119,10 @@ public sealed class User
         VisibilityLevel profileVisibility,
         VisibilityLevel profilePictureVisibility)
     {
-        EnsureDefinedVisibility(reviewVisibility, nameof(reviewVisibility));
-        EnsureDefinedVisibility(friendListVisibility, nameof(friendListVisibility));
-        EnsureDefinedVisibility(profileVisibility, nameof(profileVisibility));
-        EnsureDefinedVisibility(profilePictureVisibility, nameof(profilePictureVisibility));
+        EnumGuard.EnsureDefined(reviewVisibility, nameof(reviewVisibility));
+        EnumGuard.EnsureDefined(friendListVisibility, nameof(friendListVisibility));
+        EnumGuard.EnsureDefined(profileVisibility, nameof(profileVisibility));
+        EnumGuard.EnsureDefined(profilePictureVisibility, nameof(profilePictureVisibility));
 
         if (reviewVisibility == VisibilityLevel.Private)
         {
@@ -139,11 +140,4 @@ public sealed class User
         }
     }
 
-    private static void EnsureDefinedVisibility(VisibilityLevel visibility, string parameterName)
-    {
-        if (!Enum.IsDefined(visibility))
-        {
-            throw new InvalidOperationException($"{parameterName} is not a valid visibility level.");
-        }
-    }
 }

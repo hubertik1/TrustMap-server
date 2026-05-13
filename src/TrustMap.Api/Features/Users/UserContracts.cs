@@ -51,12 +51,16 @@ public sealed class UpdateMeRequest
 
 public sealed class UpdateMePrivacyRequest
 {
+    [DefinedEnum]
     public VisibilityLevel ReviewVisibility { get; init; }
 
+    [DefinedEnum]
     public VisibilityLevel FriendListVisibility { get; init; }
 
+    [DefinedEnum]
     public VisibilityLevel ProfileVisibility { get; init; }
 
+    [DefinedEnum]
     public VisibilityLevel ProfilePictureVisibility { get; init; }
 }
 

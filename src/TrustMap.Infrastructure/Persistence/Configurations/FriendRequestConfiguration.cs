@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
+using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Infrastructure.Persistence.Configurations;
 
@@ -8,7 +10,12 @@ internal sealed class FriendRequestConfiguration : IEntityTypeConfiguration<Frie
 {
     public void Configure(EntityTypeBuilder<FriendRequest> builder)
     {
-        builder.ToTable("friend_requests");
+        builder.ToTable("friend_requests", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_friend_requests_status",
+                EnumCheckConstraintSql.IntegerValues<FriendRequestStatus>("Status"));
+        });
 
         builder.HasKey(x => x.Id);
 

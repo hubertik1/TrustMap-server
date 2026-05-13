@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using TrustMap.Api.Common;
 using TrustMap.Api.Features.Places;
 using TrustMap.Api.Features.Users;
 using TrustMap.Domain.Enums;
@@ -59,6 +60,7 @@ public sealed class CreatePlaceReviewRequest
     public Guid CategoryId { get; init; }
 
     [Required]
+    [DefinedEnum]
     public VisibilityLevel Visibility { get; init; }
 
     [Range(1, 5)]
@@ -77,6 +79,7 @@ public sealed class UpdatePlaceReviewRequest
     public Guid CategoryId { get; init; }
 
     [Required]
+    [DefinedEnum]
     public VisibilityLevel Visibility { get; init; }
 
     [Range(1, 5)]
@@ -100,6 +103,7 @@ public sealed class CreateDishReviewRequest
     public Guid? PlaceReviewId { get; init; }
 
     [Required]
+    [DefinedEnum]
     public VisibilityLevel Visibility { get; init; }
 
     [Required]
@@ -125,6 +129,7 @@ public sealed class UpdateDishReviewRequest
     public Guid CategoryId { get; init; }
 
     [Required]
+    [DefinedEnum]
     public VisibilityLevel Visibility { get; init; }
 
     [Required]

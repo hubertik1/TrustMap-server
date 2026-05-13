@@ -1,3 +1,4 @@
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
@@ -10,6 +11,7 @@ public sealed class UserCategoryMembership
 
     public UserCategoryMembership(Guid userId, Guid categoryId, CategoryMembershipSource source, bool isVisible = true)
     {
+        EnumGuard.EnsureDefined(source, nameof(source));
         UserId = userId;
         CategoryId = categoryId;
         Source = source;

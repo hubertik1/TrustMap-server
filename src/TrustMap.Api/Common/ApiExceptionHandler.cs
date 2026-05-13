@@ -26,6 +26,11 @@ public sealed class ApiExceptionHandler(
                 "Bad Request",
                 invalidDataException.Message,
                 "invalid_request_body"),
+            ArgumentOutOfRangeException argumentOutOfRangeException => (
+                StatusCodes.Status400BadRequest,
+                "Bad Request",
+                argumentOutOfRangeException.Message,
+                "invalid_argument"),
             InvalidOperationException invalidOperationException => (
                 StatusCodes.Status400BadRequest,
                 "Bad Request",

@@ -360,7 +360,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Visibility", "UpdatedAt");
 
-                    b.ToTable("dish_reviews", (string)null);
+                    b.ToTable("dish_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_dish_reviews_visibility", "\"Visibility\" IN (1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.FriendRequest", b =>
@@ -400,7 +403,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SenderUserId", "Status", "CreatedAt");
 
-                    b.ToTable("friend_requests", (string)null);
+                    b.ToTable("friend_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_friend_requests_status", "\"Status\" IN (1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.Friendship", b =>
@@ -633,7 +639,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.HasIndex("Provider", "ProviderPlaceId")
                         .IsUnique();
 
-                    b.ToTable("places", (string)null);
+                    b.ToTable("places", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_places_source_type", "\"SourceType\" IN ('ProviderVenue', 'CustomPin', 'ApprovedPublic')");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.PlaceCategoryAssignment", b =>
@@ -713,7 +722,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Visibility", "UpdatedAt");
 
-                    b.ToTable("place_reviews", (string)null);
+                    b.ToTable("place_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_place_reviews_visibility", "\"Visibility\" IN (1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.QuotaUsage", b =>
@@ -887,7 +899,18 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.HasIndex("NormalizedHandle")
                         .IsUnique();
 
-                    b.ToTable("users", (string)null);
+                    b.ToTable("users", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_users_friend_list_visibility", "\"FriendListVisibility\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_users_profile_picture_visibility", "\"ProfilePictureVisibility\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_users_profile_visibility", "\"ProfileVisibility\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_users_review_visibility", "\"ReviewVisibility\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_users_status", "\"Status\" IN (1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.UserCategoryMembership", b =>
@@ -919,7 +942,10 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "IsVisible");
 
-                    b.ToTable("user_category_memberships", (string)null);
+                    b.ToTable("user_category_memberships", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_category_memberships_source", "\"Source\" IN (1, 2, 3)");
+                        });
                 });
 
             modelBuilder.Entity("TrustMap.Domain.Entities.UserDeviceToken", b =>
@@ -1036,6 +1062,8 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.ToTable("notifications", null, t =>
                         {
                             t.HasCheckConstraint("CK_notifications_references_match_type", "(\"Type\" = 1\n    AND \"PlaceId\" IS NOT NULL\n    AND \"PlaceReviewId\" IS NOT NULL\n    AND \"DishReviewId\" IS NULL\n    AND \"FriendRequestId\" IS NULL)\nOR (\"Type\" = 2\n    AND \"PlaceId\" IS NOT NULL\n    AND \"PlaceReviewId\" IS NULL\n    AND \"DishReviewId\" IS NOT NULL\n    AND \"FriendRequestId\" IS NULL)\nOR (\"Type\" = 3\n    AND \"PlaceId\" IS NULL\n    AND \"PlaceReviewId\" IS NULL\n    AND \"DishReviewId\" IS NULL\n    AND \"FriendRequestId\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_notifications_type", "\"Type\" IN (1, 2, 3)");
                         });
                 });
 

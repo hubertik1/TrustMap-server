@@ -1,3 +1,4 @@
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Enums;
 
 namespace TrustMap.Domain.Entities;
@@ -68,6 +69,7 @@ public sealed class DishReview
         decimal? priceAmount,
         string? currencyCode)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
         EnsureValidDishName(dishName);
         EnsureValidRating(rating);
 
@@ -87,6 +89,7 @@ public sealed class DishReview
         decimal? priceAmount,
         string? currencyCode)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
         EnsureValidDishName(dishName);
         EnsureValidRating(rating);
 

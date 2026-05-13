@@ -27,7 +27,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 IdentityToken = $"apple:{subject}",
                 DisplayName = displayName,
                 PreferredHandle = subject
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<AuthSessionDto>(JsonDefaults.Options))!;
@@ -63,7 +64,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 Longitude = longitude,
                 Provider = provider,
                 ProviderPlaceId = providerPlaceId
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<PlaceSummaryDto>(JsonDefaults.Options))!;
@@ -76,7 +78,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
             new UpdateCustomPlaceDisplayNameRequest
             {
                 DisplayName = displayName
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<PlaceSummaryDto>(JsonDefaults.Options))!;
@@ -99,7 +102,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 Rating = rating,
                 Body = body,
                 Title = "Review"
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         var review = (await response.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
@@ -126,7 +130,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 DishName = dishName,
                 Rating = rating,
                 Body = body ?? $"Body for {dishName}"
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         var review = (await response.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
@@ -141,7 +146,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
             {
                 Name = name,
                 IconName = iconName
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
@@ -169,7 +175,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
             {
                 Name = name,
                 IconName = iconName
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<CategoryDto>(JsonDefaults.Options))!;
@@ -203,7 +210,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
             new CreateFriendRequestRequest
             {
                 ReceiverUserId = receiverUserId
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<FriendRequestDto>(JsonDefaults.Options))!;
@@ -221,7 +229,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 Handle = handle,
                 DisplayName = displayName,
                 Bio = bio
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
@@ -263,7 +272,8 @@ internal sealed class TestApiClient(HttpClient httpClient)
                 FriendListVisibility = friendListVisibility,
                 ProfileVisibility = profileVisibility,
                 ProfilePictureVisibility = profilePictureVisibility
-            });
+            },
+            JsonDefaults.Options);
 
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;

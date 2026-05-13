@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Services.PushNotifications;
+using TrustMap.Domain.Common;
 using TrustMap.Domain.Entities;
 using TrustMap.Domain.Enums;
 using TrustMap.Infrastructure.Persistence;
@@ -18,6 +19,8 @@ public sealed class NotificationService(
         VisibilityLevel visibility,
         CancellationToken cancellationToken)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
+
         if (visibility == VisibilityLevel.Private)
         {
             return [];
@@ -45,6 +48,8 @@ public sealed class NotificationService(
         VisibilityLevel visibility,
         CancellationToken cancellationToken)
     {
+        EnumGuard.EnsureDefined(visibility, nameof(visibility));
+
         if (visibility == VisibilityLevel.Private)
         {
             return [];

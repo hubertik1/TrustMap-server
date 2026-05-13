@@ -10,7 +10,7 @@ internal static class JsonDefaults
     private static JsonSerializerOptions Create()
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.Converters.Add(new JsonStringEnumConverter());
+        options.Converters.Add(new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
         return options;
     }
 }

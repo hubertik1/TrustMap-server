@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TrustMap.Domain.Entities;
+using TrustMap.Domain.Enums;
+using TrustMap.Infrastructure.Persistence;
 
 namespace TrustMap.Infrastructure.Persistence.Configurations;
 
@@ -8,7 +10,12 @@ internal sealed class PlaceReviewConfiguration : IEntityTypeConfiguration<PlaceR
 {
     public void Configure(EntityTypeBuilder<PlaceReview> builder)
     {
-        builder.ToTable("place_reviews");
+        builder.ToTable("place_reviews", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_place_reviews_visibility",
+                EnumCheckConstraintSql.IntegerValues<VisibilityLevel>("Visibility"));
+        });
 
         builder.HasKey(x => x.Id);
 
