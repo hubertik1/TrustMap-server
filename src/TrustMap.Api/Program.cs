@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -16,10 +17,24 @@ using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
+var configuredPhotoStorageOptions =
+    builder.Configuration.GetSection(PhotoStorageOptions.SectionName).Get<PhotoStorageOptions>()
+    ?? new PhotoStorageOptions();
+var maxUploadBytes = configuredPhotoStorageOptions.MaxUploadBytes > 0
+    ? configuredPhotoStorageOptions.MaxUploadBytes
+    : PhotoStorageOptions.DefaultMaxUploadBytes;
+const long MultipartEnvelopeBytes = 1_048_576;
+var multipartBodyLimit = maxUploadBytes > long.MaxValue - MultipartEnvelopeBytes
+    ? long.MaxValue
+    : maxUploadBytes + MultipartEnvelopeBytes;
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = multipartBodyLimit;
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

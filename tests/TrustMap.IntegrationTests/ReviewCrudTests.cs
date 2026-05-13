@@ -353,7 +353,7 @@ public sealed class ReviewCrudTests
     private static async Task<PhotoDto> UploadPlaceReviewPhotoAsync(TestApiClient client, Guid reviewId)
     {
         using var multipart = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent([0x01, 0x02, 0x03]);
+        var fileContent = new ByteArrayContent(TestImages.CreateJpegBytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         multipart.Add(fileContent, "file", "photo.jpg");
         multipart.Add(new StringContent(reviewId.ToString()), "placeReviewId");
@@ -366,7 +366,7 @@ public sealed class ReviewCrudTests
     private static async Task<PhotoDto> UploadDishReviewPhotoAsync(TestApiClient client, Guid reviewId)
     {
         using var multipart = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent([0x01, 0x02, 0x03]);
+        var fileContent = new ByteArrayContent(TestImages.CreateJpegBytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         multipart.Add(fileContent, "file", "photo.jpg");
         multipart.Add(new StringContent(reviewId.ToString()), "dishReviewId");

@@ -18,18 +18,24 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
     private readonly SqliteConnection _connection = new("Data Source=:memory:;Foreign Keys=True");
     private readonly string _photoRootPath = Path.Combine(Path.GetTempPath(), "trustmap-tests", Guid.NewGuid().ToString("N"));
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly IReadOnlyDictionary<string, string?> _configurationOverrides;
 
-    public TrustMapWebApplicationFactory(Action<IServiceCollection>? configureServices = null)
+    public TrustMapWebApplicationFactory(
+        Action<IServiceCollection>? configureServices = null,
+        IReadOnlyDictionary<string, string?>? configurationOverrides = null)
     {
         _configureServices = configureServices;
+        _configurationOverrides = configurationOverrides ?? new Dictionary<string, string?>();
     }
+
+    public string PhotoRootPath => _photoRootPath;
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
-            configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            var testConfiguration = new Dictionary<string, string?>
             {
                 ["Jwt:Issuer"] = "TrustMap.Test",
                 ["Jwt:Audience"] = "TrustMap.Tests",
@@ -39,8 +45,18 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
                 ["Database:ApplyMigrationsOnStartup"] = "false",
                 ["PhotoStorage:Provider"] = "local",
                 ["PhotoStorage:RootPath"] = _photoRootPath,
-                ["PhotoStorage:RequestPath"] = "/uploads"
-            });
+                ["PhotoStorage:RequestPath"] = "/uploads",
+                ["PhotoStorage:MaxUploadBytes"] = PhotoStorageOptions.DefaultMaxUploadBytes.ToString(),
+                ["PhotoStorage:OutputFormat"] = "jpeg",
+                ["PhotoStorage:JpegQuality"] = "85"
+            };
+
+            foreach (var (key, value) in _configurationOverrides)
+            {
+                testConfiguration[key] = value;
+            }
+
+            configurationBuilder.AddInMemoryCollection(testConfiguration);
         });
 
         builder.ConfigureServices(services =>

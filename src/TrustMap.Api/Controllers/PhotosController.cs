@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Common;
 using TrustMap.Api.Features.Reviews;
@@ -16,8 +17,11 @@ namespace TrustMap.Api.Controllers;
 public sealed class PhotosController(
     TrustMapDbContext dbContext,
     IPhotoStorage photoStorage,
-    ILogger<PhotosController> logger) : ControllerBase
+    ILogger<PhotosController> logger,
+    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor) : ControllerBase
 {
+    private readonly PhotoStorageOptions _photoStorageOptions = photoStorageOptionsAccessor.Value;
+
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<PhotoDto>(StatusCodes.Status201Created)]
@@ -30,6 +34,8 @@ public sealed class PhotosController(
         {
             throw ApiException.BadRequest("Provide exactly one review parent for the uploaded photo.", "photo_invalid_parent");
         }
+
+        EnsureValidUploadFile(request.File);
 
         var currentUserId = User.GetRequiredUserId();
 
@@ -67,11 +73,7 @@ public sealed class PhotosController(
         }
 
         await using var stream = request.File.OpenReadStream();
-        var storedPhoto = await photoStorage.SaveAsync(
-            stream,
-            request.File.FileName,
-            request.File.ContentType,
-            cancellationToken);
+        var storedPhoto = await photoStorage.SaveAsync(stream, cancellationToken);
 
         var photo = new Photo(
             Guid.CreateVersion7(),
@@ -86,7 +88,7 @@ public sealed class PhotosController(
             storedPhoto.Medium?.PublicUrl,
             storedPhoto.Thumbnail?.StorageKey,
             storedPhoto.Thumbnail?.PublicUrl,
-            request.File.FileName,
+            GetStoredFileName(storedPhoto.StorageKey),
             storedPhoto.ContentType,
             storedPhoto.SizeBytes,
             storedPhoto.Width,
@@ -102,7 +104,7 @@ public sealed class PhotosController(
         }
         catch
         {
-            await photoStorage.DeleteAsync(storedPhoto.StorageKey, cancellationToken);
+            await DeleteStoredPhotoAsync(storedPhoto, cancellationToken);
             throw;
         }
 
@@ -136,18 +138,79 @@ public sealed class PhotosController(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        try
+        foreach (var storageKey in photo.EnumerateStorageKeys())
         {
-            foreach (var storageKey in photo.EnumerateStorageKeys())
+            try
             {
                 await photoStorage.DeleteAsync(storageKey, cancellationToken);
             }
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Failed to delete one or more photo blobs for photo {PhotoId} after metadata deletion.", photo.Id);
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Failed to delete photo blob {StorageKey} after metadata deletion for photo {PhotoId}.", storageKey, photo.Id);
+            }
         }
 
         return NoContent();
+    }
+
+    private void EnsureValidUploadFile(IFormFile? file)
+    {
+        if (file is null)
+        {
+            throw ApiException.BadRequest("Attach an image file in the 'file' form field.", "photo_file_missing");
+        }
+
+        if (file.Length <= 0)
+        {
+            throw ApiException.BadRequest("Attach a non-empty image file.", "photo_empty");
+        }
+
+        var maxUploadBytes = _photoStorageOptions.MaxUploadBytes > 0
+            ? _photoStorageOptions.MaxUploadBytes
+            : PhotoStorageOptions.DefaultMaxUploadBytes;
+        if (file.Length > maxUploadBytes)
+        {
+            throw ApiException.BadRequest(
+                $"Uploaded image must be {maxUploadBytes} bytes or smaller.",
+                "photo_too_large");
+        }
+    }
+
+    private async Task DeleteStoredPhotoAsync(StoredPhoto storedPhoto, CancellationToken cancellationToken)
+    {
+        foreach (var storageKey in EnumerateStorageKeys(storedPhoto))
+        {
+            try
+            {
+                await photoStorage.DeleteAsync(storageKey, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Failed to roll back uploaded photo blob {StorageKey}.", storageKey);
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateStorageKeys(StoredPhoto storedPhoto)
+    {
+        yield return storedPhoto.StorageKey;
+
+        if (!string.IsNullOrWhiteSpace(storedPhoto.Medium?.StorageKey))
+        {
+            yield return storedPhoto.Medium.StorageKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(storedPhoto.Thumbnail?.StorageKey))
+        {
+            yield return storedPhoto.Thumbnail.StorageKey;
+        }
+    }
+
+    private static string GetStoredFileName(string storageKey)
+    {
+        var slashIndex = storageKey.LastIndexOf('/');
+        return slashIndex < 0
+            ? storageKey
+            : storageKey[(slashIndex + 1)..];
     }
 }

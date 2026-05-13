@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
 using TrustMap.Api.Features.Users;
 using TrustMap.Api.Services;
@@ -19,8 +20,10 @@ public sealed class MeController(
     ProfileQueryService profileQueryService,
     IPhotoStorage photoStorage,
     ILogger<MeController> logger,
-    IConfiguration configuration) : ControllerBase
+    IOptions<PhotoStorageOptions> photoStorageOptionsAccessor) : ControllerBase
 {
+    private readonly PhotoStorageOptions _photoStorageOptions = photoStorageOptionsAccessor.Value;
+
     [HttpGet]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public Task<UserProfileDto> Get(CancellationToken cancellationToken)
@@ -35,24 +38,65 @@ public sealed class MeController(
     public Task<ActionResult<UserProfileDto>> PatchJson(
         [FromBody] UpdateMeRequest request,
         CancellationToken cancellationToken) =>
-        PatchInternal(request, AvatarUpdateAction.Keep, avatarFile: null, cancellationToken);
+        PatchInternal(request, cancellationToken);
 
-    [HttpPatch]
+    [HttpPut("avatar")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
-    public Task<ActionResult<UserProfileDto>> PatchMultipart(
-        [FromForm] UpdateMeMultipartRequest request,
+    public async Task<ActionResult<UserProfileDto>> PutAvatar(
+        [FromForm] UpdateAvatarRequest request,
         CancellationToken cancellationToken)
     {
-        var jsonRequest = new UpdateMeRequest
-        {
-            Handle = request.Handle,
-            DisplayName = request.DisplayName,
-            Bio = request.Bio,
-            AvatarUrl = null
-        };
+        EnsureValidUploadFile(request.Avatar, "avatar");
 
-        return PatchInternal(jsonRequest, request.AvatarAction, request.Avatar, cancellationToken);
+        var currentUserId = User.GetRequiredUserId();
+        var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
+            ?? throw ApiException.NotFound("User not found.", "user_not_found");
+
+        var previousAvatarUrl = user.AvatarUrl;
+        StoredPhoto? replacementAvatar = null;
+
+        try
+        {
+            await using var stream = request.Avatar.OpenReadStream();
+            replacementAvatar = await photoStorage.SaveAsync(stream, cancellationToken);
+            user.UpdateProfile(user.Handle, user.DisplayName, user.Bio, replacementAvatar.PublicUrl);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            if (replacementAvatar is not null)
+            {
+                await DeleteStoredPhotoAsync(replacementAvatar, currentUserId, cancellationToken);
+            }
+
+            throw;
+        }
+
+        if (!string.Equals(previousAvatarUrl, user.AvatarUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            await DeleteAvatarAtUrlAsync(previousAvatarUrl, cancellationToken);
+        }
+
+        var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
+        return Ok(profile);
+    }
+
+    [HttpDelete("avatar")]
+    [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<UserProfileDto>> DeleteAvatar(CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
+            ?? throw ApiException.NotFound("User not found.", "user_not_found");
+
+        var previousAvatarUrl = user.AvatarUrl;
+        user.UpdateProfile(user.Handle, user.DisplayName, user.Bio, avatarUrl: null);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await DeleteAvatarAtUrlAsync(previousAvatarUrl, cancellationToken);
+
+        var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
+        return Ok(profile);
     }
 
     [HttpPatch("privacy")]
@@ -144,8 +188,6 @@ public sealed class MeController(
 
     private async Task<ActionResult<UserProfileDto>> PatchInternal(
         UpdateMeRequest request,
-        AvatarUpdateAction avatarAction,
-        IFormFile? avatarFile,
         CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
@@ -159,56 +201,8 @@ public sealed class MeController(
             user.Email,
             currentUserId,
             cancellationToken);
-
-        if (avatarAction == AvatarUpdateAction.Replace && avatarFile is null)
-        {
-            throw ApiException.BadRequest("Attach an avatar image when replacing the profile photo.", "avatar_file_missing");
-        }
-
-        if (avatarAction != AvatarUpdateAction.Replace && avatarFile is not null)
-        {
-            throw ApiException.BadRequest("Unexpected avatar file upload.", "avatar_file_unexpected");
-        }
-
-        var previousAvatarUrl = user.AvatarUrl;
-        StoredPhoto? replacementAvatar = null;
-        var avatarUrl = request.AvatarUrl;
-
-        if (avatarAction == AvatarUpdateAction.Replace)
-        {
-            await using var stream = avatarFile!.OpenReadStream();
-            replacementAvatar = await photoStorage.SaveAsync(
-                stream,
-                avatarFile.FileName,
-                avatarFile.ContentType,
-                cancellationToken);
-            avatarUrl = replacementAvatar.PublicUrl;
-        }
-        else if (avatarAction == AvatarUpdateAction.Remove)
-        {
-            avatarUrl = null;
-        }
-
-        user.UpdateProfile(handle, request.DisplayName, request.Bio, avatarUrl);
-
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            if (replacementAvatar is not null)
-            {
-                await DeleteStoredPhotoAsync(replacementAvatar, currentUserId, cancellationToken);
-            }
-
-            throw;
-        }
-
-        if (!string.Equals(previousAvatarUrl, user.AvatarUrl, StringComparison.OrdinalIgnoreCase))
-        {
-            await DeleteAvatarAtUrlAsync(previousAvatarUrl, cancellationToken);
-        }
+        user.UpdateProfile(handle, request.DisplayName, request.Bio, user.AvatarUrl);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         var profile = await profileQueryService.GetProfileAsync(currentUserId, currentUserId, cancellationToken);
         return Ok(profile);
@@ -268,7 +262,12 @@ public sealed class MeController(
             return false;
         }
 
-        var requestPath = configuration["PhotoStorage:RequestPath"]?.TrimEnd('/') ?? "/uploads";
+        var requestPath = _photoStorageOptions.RequestPath.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(requestPath))
+        {
+            requestPath = "/uploads";
+        }
+
         var path = avatarUrl;
 
         if (Uri.TryCreate(avatarUrl, UriKind.Absolute, out var absoluteUri))
@@ -276,13 +275,37 @@ public sealed class MeController(
             path = absoluteUri.AbsolutePath;
         }
 
-        if (!path.StartsWith(requestPath, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(path, requestPath, StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith($"{requestPath}/", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         storageKey = path[requestPath.Length..].TrimStart('/');
         return !string.IsNullOrWhiteSpace(storageKey);
+    }
+
+    private void EnsureValidUploadFile(IFormFile? file, string fieldName)
+    {
+        if (file is null)
+        {
+            throw ApiException.BadRequest($"Attach an image file in the '{fieldName}' form field.", "photo_file_missing");
+        }
+
+        if (file.Length <= 0)
+        {
+            throw ApiException.BadRequest("Attach a non-empty image file.", "photo_empty");
+        }
+
+        var maxUploadBytes = _photoStorageOptions.MaxUploadBytes > 0
+            ? _photoStorageOptions.MaxUploadBytes
+            : PhotoStorageOptions.DefaultMaxUploadBytes;
+        if (file.Length > maxUploadBytes)
+        {
+            throw ApiException.BadRequest(
+                $"Uploaded image must be {maxUploadBytes} bytes or smaller.",
+                "photo_too_large");
+        }
     }
 
     private static IEnumerable<string> EnumerateAvatarStorageKeys(string originalStorageKey)
@@ -293,15 +316,16 @@ public sealed class MeController(
         var basePath = extension.Length == 0
             ? originalStorageKey
             : originalStorageKey[..^extension.Length];
+        var variantExtension = extension.Length == 0 ? ".jpg" : extension;
 
         if (!basePath.EndsWith("-medium", StringComparison.OrdinalIgnoreCase))
         {
-            yield return $"{basePath}-medium.jpg";
+            yield return $"{basePath}-medium{variantExtension}";
         }
 
         if (!basePath.EndsWith("-thumb", StringComparison.OrdinalIgnoreCase))
         {
-            yield return $"{basePath}-thumb.jpg";
+            yield return $"{basePath}-thumb{variantExtension}";
         }
     }
 }

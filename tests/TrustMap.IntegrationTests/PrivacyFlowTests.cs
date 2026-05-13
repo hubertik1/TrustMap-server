@@ -260,10 +260,10 @@ public sealed class PrivacyFlowTests
         var alice = await CreateAuthenticatedClientAsync(factory, "hidden-avatar-alice", "Hidden Avatar Alice");
         var bob = await CreateAuthenticatedClientAsync(factory, "hidden-avatar-bob", "Bob");
 
-        await alice.Client.UpdateMeAsync(
-            "hidden-avatar-alice",
-            "Hidden Avatar Alice",
-            avatarUrl: "/uploads/avatars/alice-private.jpg");
+        await alice.Client.UpdateMeAsync("hidden-avatar-alice", "Hidden Avatar Alice");
+        await alice.Client.ReplaceAvatarAsync(
+            TestImages.CreateJpegBytes(),
+            fileName: "alice-private.jpg");
         await alice.Client.UpdateMePrivacyAsync(profilePictureVisibility: VisibilityLevel.Friends);
 
         var profile = await bob.Client.HttpClient.GetFromJsonAsync<UserProfileDto>(

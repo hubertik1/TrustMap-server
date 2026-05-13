@@ -212,8 +212,7 @@ internal sealed class TestApiClient(HttpClient httpClient)
     public async Task<UserProfileDto> UpdateMeAsync(
         string handle,
         string displayName,
-        string? bio = null,
-        string? avatarUrl = null)
+        string? bio = null)
     {
         var response = await HttpClient.PatchAsJsonAsync(
             "/me",
@@ -221,10 +220,31 @@ internal sealed class TestApiClient(HttpClient httpClient)
             {
                 Handle = handle,
                 DisplayName = displayName,
-                Bio = bio,
-                AvatarUrl = avatarUrl
+                Bio = bio
             });
 
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<UserProfileDto> ReplaceAvatarAsync(
+        byte[] imageBytes,
+        string fileName = "avatar.jpg",
+        string contentType = "image/jpeg")
+    {
+        using var multipart = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(imageBytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        multipart.Add(fileContent, "avatar", fileName);
+
+        var response = await HttpClient.PutAsync("/me/avatar", multipart);
+        await EnsureSuccessAsync(response);
+        return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
+    }
+
+    public async Task<UserProfileDto> RemoveAvatarAsync()
+    {
+        var response = await HttpClient.DeleteAsync("/me/avatar");
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options))!;
     }

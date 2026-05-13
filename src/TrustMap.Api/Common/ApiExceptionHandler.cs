@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using TrustMap.Infrastructure.Storage;
 
 namespace TrustMap.Api.Common;
 
@@ -15,6 +16,16 @@ public sealed class ApiExceptionHandler(
         var (statusCode, title, detail, errorCode) = exception switch
         {
             ApiException apiException => (apiException.StatusCode, apiException.Title, apiException.Detail, apiException.ErrorCode),
+            PhotoStorageException photoStorageException => (
+                StatusCodes.Status400BadRequest,
+                "Bad Request",
+                photoStorageException.Message,
+                photoStorageException.ErrorCode),
+            InvalidDataException invalidDataException => (
+                StatusCodes.Status400BadRequest,
+                "Bad Request",
+                invalidDataException.Message,
+                "invalid_request_body"),
             InvalidOperationException invalidOperationException => (
                 StatusCodes.Status400BadRequest,
                 "Bad Request",

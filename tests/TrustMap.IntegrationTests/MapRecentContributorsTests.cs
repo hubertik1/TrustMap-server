@@ -79,10 +79,10 @@ public sealed class MapRecentContributorsTests
         var bob = await CreateAuthenticatedClientAsync(factory, "visibility-bob", "Bob");
         var charlie = await CreateAuthenticatedClientAsync(factory, "visibility-charlie", "Charlie");
 
-        await charlie.Client.UpdateMeAsync(
-            "visibility-charlie",
-            "Hidden Charlie",
-            avatarUrl: "/uploads/avatars/hidden-charlie.jpg");
+        await charlie.Client.UpdateMeAsync("visibility-charlie", "Hidden Charlie");
+        await charlie.Client.ReplaceAvatarAsync(
+            TestImages.CreateJpegBytes(),
+            fileName: "hidden-charlie.jpg");
 
         await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
 

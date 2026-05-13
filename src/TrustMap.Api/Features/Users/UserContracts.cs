@@ -47,9 +47,6 @@ public sealed class UpdateMeRequest
 
     [StringLength(500)]
     public string? Bio { get; init; }
-
-    [StringLength(500)]
-    public string? AvatarUrl { get; init; }
 }
 
 public sealed class UpdateMePrivacyRequest
@@ -63,32 +60,9 @@ public sealed class UpdateMePrivacyRequest
     public VisibilityLevel ProfilePictureVisibility { get; init; }
 }
 
-public enum AvatarUpdateAction
+public sealed class UpdateAvatarRequest
 {
-    Keep = 0,
-    Remove = 1,
-    Replace = 2
-}
-
-public sealed class UpdateMeMultipartRequest
-{
-    [FromForm(Name = "handle")]
-    [Required]
-    [StringLength(32, MinimumLength = 3)]
-    public string Handle { get; init; } = null!;
-
-    [FromForm(Name = "displayName")]
-    [Required]
-    [StringLength(100, MinimumLength = 1)]
-    public string DisplayName { get; init; } = null!;
-
-    [FromForm(Name = "bio")]
-    [StringLength(500)]
-    public string? Bio { get; init; }
-
-    [FromForm(Name = "avatarAction")]
-    public AvatarUpdateAction AvatarAction { get; init; } = AvatarUpdateAction.Keep;
-
     [FromForm(Name = "avatar")]
-    public IFormFile? Avatar { get; init; }
+    [Required]
+    public IFormFile Avatar { get; init; } = null!;
 }

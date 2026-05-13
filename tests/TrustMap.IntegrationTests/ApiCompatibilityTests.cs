@@ -3,9 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
 using TrustMap.Api.Features.Categories;
 using TrustMap.Api.Features.Feed;
 using TrustMap.Api.Features.Places;
@@ -37,21 +34,21 @@ public sealed class ApiCompatibilityTests
         var updated = await client.UpdateMeAsync(
             "alice refined#1234",
             "Alice Refined",
-            bio: "Updated bio",
-            avatarUrl: "/uploads/avatars/alice.jpg");
+            bio: "Updated bio");
 
         Assert.Equal("Alice Refined", updated.DisplayName);
+        Assert.Null(updated.AvatarUrl);
 
         var reloaded = await client.HttpClient.GetFromJsonAsync<UserProfileDto>("/me", JsonDefaults.Options);
         Assert.NotNull(reloaded);
         Assert.Equal(updated.Handle, reloaded!.Handle);
         Assert.Equal("Alice Refined", reloaded.DisplayName);
         Assert.Equal("Updated bio", reloaded.Bio);
-        Assert.Equal("/uploads/avatars/alice.jpg", reloaded.AvatarUrl);
+        Assert.Null(reloaded.AvatarUrl);
     }
 
     [Fact]
-    public async Task PatchMe_WithMultipartAvatarReplacement_StoresAvatarUrl()
+    public async Task PutMeAvatar_WithMultipartAvatarReplacement_StoresAvatarUrl()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -61,22 +58,15 @@ public sealed class ApiCompatibilityTests
         client.Authenticate(session.AccessToken);
 
         using var multipart = new MultipartFormDataContent();
-        multipart.Add(new StringContent("alice updated#1234"), "handle");
-        multipart.Add(new StringContent("Alice Updated"), "displayName");
-        multipart.Add(new StringContent("Avatar bio"), "bio");
-        multipart.Add(new StringContent("Replace"), "avatarAction");
-
-        var fileContent = new ByteArrayContent(CreateTestJpegBytes(width: 320, height: 320));
+        var fileContent = new ByteArrayContent(TestImages.CreateJpegBytes(width: 320, height: 320));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         multipart.Add(fileContent, "avatar", "avatar.jpg");
 
-        var response = await client.HttpClient.PatchAsync("/me", multipart);
+        var response = await client.HttpClient.PutAsync("/me/avatar", multipart);
         response.EnsureSuccessStatusCode();
 
         var updated = await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options);
         Assert.NotNull(updated);
-        Assert.Equal("Alice Updated", updated!.DisplayName);
-        Assert.Equal("Avatar bio", updated.Bio);
         Assert.NotNull(updated.AvatarUrl);
         Assert.StartsWith("/uploads/", updated.AvatarUrl, StringComparison.Ordinal);
     }
@@ -165,7 +155,7 @@ public sealed class ApiCompatibilityTests
         var reviewId = await client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Public, 5, "Photo review");
 
         using var multipart = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent(CreateTestJpegBytes(width: 1_600, height: 1_200));
+        var fileContent = new ByteArrayContent(TestImages.CreateJpegBytes(width: 1_600, height: 1_200));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         multipart.Add(fileContent, "file", "photo.jpg");
         multipart.Add(new StringContent(reviewId.ToString()), "placeReviewId");
@@ -307,11 +297,4 @@ public sealed class ApiCompatibilityTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private static byte[] CreateTestJpegBytes(int width, int height)
-    {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(210, 116, 74));
-        using var buffer = new MemoryStream();
-        image.SaveAsJpeg(buffer, new JpegEncoder { Quality = 90 });
-        return buffer.ToArray();
-    }
 }
