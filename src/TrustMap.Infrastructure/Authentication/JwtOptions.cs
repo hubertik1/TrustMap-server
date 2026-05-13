@@ -8,7 +8,7 @@ public sealed class JwtOptions
 
     public string Audience { get; set; } = "TrustMap.Mobile";
 
-    public string SigningKey { get; set; } = "change-me-super-long-signing-key-for-local-development";
+    public string SigningKey { get; set; } = string.Empty;
 
     public int AccessTokenMinutes { get; set; } = 15;
 

@@ -10,6 +10,7 @@ services:
       Database__ApplyMigrationsOnStartup: "true"
       Jwt__Issuer: TrustMap.Api
       Jwt__Audience: TrustMap.iOS
+      # Development-only placeholder. Do not use this value with ASPNETCORE_ENVIRONMENT=Production.
       Jwt__SigningKey: trustmap-local-development-signing-key-change-before-production
       Jwt__AccessTokenMinutes: "15"
       Jwt__RefreshTokenDays: "30"

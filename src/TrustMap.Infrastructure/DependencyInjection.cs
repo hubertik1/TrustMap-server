@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TrustMap.Infrastructure.Authentication;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
@@ -13,10 +14,14 @@ public static class DependencyInjection
     public static IServiceCollection AddTrustMapInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration,
-        string contentRootPath)
+        string contentRootPath,
+        string environmentName)
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<JwtOptions>>(_ => new JwtOptionsValidator(environmentName));
         services.Configure<AppleAuthOptions>(configuration.GetSection(AppleAuthOptions.SectionName));
         services.Configure<PhotoStorageOptions>(configuration.GetSection(PhotoStorageOptions.SectionName));
 

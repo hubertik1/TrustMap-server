@@ -86,6 +86,8 @@ Environment variables override appsettings using standard ASP.NET naming.
 
 Production remains driven by `appsettings.json` plus environment variables from the hosting platform. The LAN-friendly listener lives only in `appsettings.Development.json`.
 
+`Jwt__SigningKey` must come from an environment variable or secret store in Production. The development signing key in `appsettings.Development.json`, `docker-compose.yml`, and `.env.example` is local-only and is rejected during Production startup.
+
 ### Required settings
 
 - `ConnectionStrings__Database`
@@ -103,6 +105,7 @@ Production remains driven by `appsettings.json` plus environment variables from 
 ConnectionStrings__Database=Data Source=App_Data/trustmap.db;Foreign Keys=True;
 Jwt__Issuer=TrustMap.Api
 Jwt__Audience=TrustMap.iOS
+# Development-only placeholder. Generate a strong secret for Production.
 Jwt__SigningKey=trustmap-local-development-signing-key-change-before-production
 AppleAuth__AllowedAudiences__0=com.your.bundle.id
 PhotoStorage__Provider=local

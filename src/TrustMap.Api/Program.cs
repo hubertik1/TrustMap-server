@@ -67,7 +67,10 @@ builder.Services.PostConfigure<PhotoStorageOptions>(options =>
     options.RootPath = Path.GetFullPath(options.RootPath, builder.Environment.ContentRootPath);
 });
 
-builder.Services.AddTrustMapInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
+builder.Services.AddTrustMapInfrastructure(
+    builder.Configuration,
+    builder.Environment.ContentRootPath,
+    builder.Environment.EnvironmentName);
 builder.Services.AddScoped<CategoryAssignmentService>();
 builder.Services.AddScoped<CategoryMembershipService>();
 builder.Services.AddScoped<HandleGenerator>();
@@ -79,12 +82,6 @@ builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddSingleton<IPushNotificationSender, NoOpPushNotificationSender>();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
-
-var configuredJwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-if (Encoding.UTF8.GetByteCount(configuredJwtOptions.SigningKey) < 32)
-{
-    throw new InvalidOperationException("Jwt:SigningKey must be at least 32 bytes long.");
-}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
@@ -110,6 +107,9 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+// Force JWT options validation before startup side effects such as database migrations.
+_ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
 
 app.UseExceptionHandler();
 

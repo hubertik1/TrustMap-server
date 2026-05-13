@@ -19,20 +19,23 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
     private readonly string _photoRootPath = Path.Combine(Path.GetTempPath(), "trustmap-tests", Guid.NewGuid().ToString("N"));
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly IReadOnlyDictionary<string, string?> _configurationOverrides;
+    private readonly string _environmentName;
 
     public TrustMapWebApplicationFactory(
         Action<IServiceCollection>? configureServices = null,
-        IReadOnlyDictionary<string, string?>? configurationOverrides = null)
+        IReadOnlyDictionary<string, string?>? configurationOverrides = null,
+        string environmentName = "Testing")
     {
         _configureServices = configureServices;
         _configurationOverrides = configurationOverrides ?? new Dictionary<string, string?>();
+        _environmentName = environmentName;
     }
 
     public string PhotoRootPath => _photoRootPath;
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(_environmentName);
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
             var testConfiguration = new Dictionary<string, string?>
