@@ -4,13 +4,13 @@ public sealed class NoOpPushNotificationSender(ILogger<NoOpPushNotificationSende
 {
     private int _hasLoggedDisabledMessage;
 
-    public Task SendAsync(PushNotificationRequest notification, CancellationToken cancellationToken)
+    public Task<PushNotificationSendResult> SendAsync(PushNotificationRequest notification, CancellationToken cancellationToken)
     {
         if (Interlocked.Exchange(ref _hasLoggedDisabledMessage, 1) == 0)
         {
             logger.LogInformation("Push notification sending is disabled because APNs credentials are not configured.");
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(PushNotificationSendResult.Successful());
     }
 }

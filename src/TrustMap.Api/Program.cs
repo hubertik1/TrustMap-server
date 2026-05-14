@@ -108,7 +108,25 @@ builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<IQuotaService, EfQuotaService>();
-builder.Services.AddSingleton<IPushNotificationSender, NoOpPushNotificationSender>();
+builder.Services.AddOptions<PushNotificationOptions>()
+    .Bind(builder.Configuration.GetSection(PushNotificationOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<PushNotificationOptions>>(
+    _ => new PushNotificationOptionsValidator(builder.Environment.EnvironmentName));
+builder.Services.AddHttpClient(ApnsPushNotificationSender.HttpClientName, (serviceProvider, httpClient) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PushNotificationOptions>>().Value;
+    httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.Apns.RequestTimeoutSeconds));
+});
+builder.Services.AddSingleton<NoOpPushNotificationSender>();
+builder.Services.AddSingleton<ApnsPushNotificationSender>();
+builder.Services.AddSingleton<IPushNotificationSender>(serviceProvider =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PushNotificationOptions>>().Value;
+    return options.UseApnsProvider
+        ? serviceProvider.GetRequiredService<ApnsPushNotificationSender>()
+        : serviceProvider.GetRequiredService<NoOpPushNotificationSender>();
+});
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 builder.Services.AddOptions<QuotaOptions>()
     .Bind(builder.Configuration.GetSection(QuotaOptions.SectionName))
@@ -141,8 +159,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Force JWT options validation before startup side effects such as database migrations.
+// Force critical options validation before startup side effects such as database migrations.
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
+_ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PushNotificationOptions>>().Value;
 
 app.UseExceptionHandler();
 

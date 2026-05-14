@@ -433,7 +433,9 @@ public sealed class NotificationFlowTests
 
     private sealed class ThrowingPushNotificationSender : IPushNotificationSender
     {
-        public Task SendAsync(PushNotificationRequest notification, CancellationToken cancellationToken) =>
+        public Task<PushNotificationSendResult> SendAsync(
+            PushNotificationRequest notification,
+            CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Simulated APNs failure.");
     }
 }

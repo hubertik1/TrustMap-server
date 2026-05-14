@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using TrustMap.Api.Services.PushNotifications;
 using TrustMap.Domain.Common;
@@ -144,57 +146,119 @@ public sealed class NotificationService(
             return;
         }
 
-        var notificationIds = notifications.Select(x => x.Id).ToList();
-        var persistedNotifications = await dbContext.Notifications
-            .AsNoTracking()
-            .Include(x => x.ActorUser)
-            .Where(x => notificationIds.Contains(x.Id))
-            .ToListAsync(cancellationToken);
-
-        if (persistedNotifications.Count == 0)
+        try
         {
-            return;
-        }
+            var notificationIds = notifications.Select(x => x.Id).ToList();
+            var persistedNotifications = await dbContext.Notifications
+                .AsNoTracking()
+                .Include(x => x.ActorUser)
+                .Where(x => notificationIds.Contains(x.Id))
+                .ToListAsync(cancellationToken);
 
-        var recipientIds = persistedNotifications.Select(x => x.RecipientUserId).Distinct().ToList();
-        var deviceTokens = await dbContext.DeviceTokens
-            .AsNoTracking()
-            .Where(x => recipientIds.Contains(x.UserId) && x.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-
-        if (deviceTokens.Count == 0)
-        {
-            return;
-        }
-
-        var tokensByUser = deviceTokens
-            .GroupBy(x => x.UserId)
-            .ToDictionary(x => x.Key, x => x.ToArray());
-
-        foreach (var notification in persistedNotifications)
-        {
-            if (!tokensByUser.TryGetValue(notification.RecipientUserId, out var recipientTokens))
+            if (persistedNotifications.Count == 0)
             {
-                continue;
+                return;
             }
 
-            foreach (var deviceToken in recipientTokens)
+            var recipientIds = persistedNotifications.Select(x => x.RecipientUserId).Distinct().ToList();
+            var unreadCounts = await dbContext.Notifications
+                .AsNoTracking()
+                .Where(x => recipientIds.Contains(x.RecipientUserId) && x.ReadAt == null)
+                .GroupBy(x => x.RecipientUserId)
+                .Select(x => new { RecipientUserId = x.Key, Count = x.Count() })
+                .ToDictionaryAsync(x => x.RecipientUserId, x => x.Count, cancellationToken);
+
+            var deviceTokens = await dbContext.DeviceTokens
+                .Where(x => recipientIds.Contains(x.UserId) && x.RevokedAt == null)
+                .ToListAsync(cancellationToken);
+
+            if (deviceTokens.Count == 0)
             {
-                try
+                return;
+            }
+
+            var tokensByUser = deviceTokens
+                .GroupBy(x => x.UserId)
+                .ToDictionary(x => x.Key, x => x.ToArray());
+            var revokedAnyToken = false;
+
+            foreach (var notification in persistedNotifications)
+            {
+                if (!tokensByUser.TryGetValue(notification.RecipientUserId, out var recipientTokens))
                 {
-                    await pushNotificationSender.SendAsync(
-                        ToPushNotification(notification, deviceToken.Token),
-                        cancellationToken);
+                    continue;
                 }
-                catch (Exception exception) when (exception is not OperationCanceledException)
+
+                foreach (var deviceToken in recipientTokens)
                 {
-                    logger.LogWarning(
-                        exception,
-                        "Failed to send push notification {NotificationId} to user {RecipientUserId}.",
-                        notification.Id,
-                        notification.RecipientUserId);
+                    if (deviceToken.RevokedAt is not null)
+                    {
+                        continue;
+                    }
+
+                    var deviceTokenHashPrefix = BuildDeviceTokenHashPrefix(deviceToken.Token);
+                    try
+                    {
+                        var badgeCount = unreadCounts.TryGetValue(notification.RecipientUserId, out var unreadCount)
+                            ? unreadCount
+                            : (int?)null;
+                        var result = await pushNotificationSender.SendAsync(
+                            ToPushNotification(notification, deviceToken, badgeCount),
+                            cancellationToken);
+
+                        if (result.Success)
+                        {
+                            continue;
+                        }
+
+                        logger.LogWarning(
+                            "Push notification {NotificationId} to user {RecipientUserId} failed with status {StatusCode}, provider reason {ProviderReason}, device token hash {DeviceTokenHashPrefix}.",
+                            notification.Id,
+                            notification.RecipientUserId,
+                            result.StatusCode,
+                            result.ProviderReason,
+                            deviceTokenHashPrefix);
+
+                        if (result.ShouldInvalidateDeviceToken)
+                        {
+                            deviceToken.Revoke();
+                            revokedAnyToken = true;
+                            logger.LogInformation(
+                                "Revoked invalid push device token hash {DeviceTokenHashPrefix} for user {RecipientUserId}.",
+                                deviceTokenHashPrefix,
+                                notification.RecipientUserId);
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning(
+                            "Failed to send push notification {NotificationId} to user {RecipientUserId}; exception type {ExceptionType}; device token hash {DeviceTokenHashPrefix}.",
+                            notification.Id,
+                            notification.RecipientUserId,
+                            exception.GetType().Name,
+                            deviceTokenHashPrefix);
+                    }
                 }
             }
+
+            if (revokedAnyToken)
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Push notification dispatch failed after in-app notifications were saved.");
         }
     }
 
@@ -247,7 +311,10 @@ public sealed class NotificationService(
         return addedNotifications;
     }
 
-    private static PushNotificationRequest ToPushNotification(UserNotification notification, string deviceToken)
+    private static PushNotificationRequest ToPushNotification(
+        UserNotification notification,
+        UserDeviceToken deviceToken,
+        int? badgeCount)
     {
         var actorMention = BuildActorMention(notification.ActorUser);
         var body = notification.Type switch
@@ -259,10 +326,12 @@ public sealed class NotificationService(
         };
 
         return new PushNotificationRequest(
-            deviceToken,
+            deviceToken.Token,
+            deviceToken.Environment,
             "TrustMap",
             body,
-            BuildPayloadData(notification));
+            BuildPayloadData(notification),
+            badgeCount);
     }
 
     private static IReadOnlyDictionary<string, string> BuildPayloadData(UserNotification notification)
@@ -283,7 +352,23 @@ public sealed class NotificationService(
             data["friendRequestId"] = notification.FriendRequestId.Value.ToString("D");
         }
 
+        if (notification.PlaceReviewId.HasValue)
+        {
+            data["placeReviewId"] = notification.PlaceReviewId.Value.ToString("D");
+        }
+
+        if (notification.DishReviewId.HasValue)
+        {
+            data["dishReviewId"] = notification.DishReviewId.Value.ToString("D");
+        }
+
         return data;
+    }
+
+    private static string BuildDeviceTokenHashPrefix(string token)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(hash.AsSpan(0, 6)).ToLowerInvariant();
     }
 
     private static string BuildActorMention(User actor)

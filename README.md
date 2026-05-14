@@ -189,3 +189,4 @@ Covered flows:
 See:
 
 - [docs/ios-integration.md](/Users/hubert/Projects/TrustMap/TrustMap-server/docs/ios-integration.md)
+- [docs/push-notifications.md](/Users/hubert/Projects/TrustMap/TrustMap-server/docs/push-notifications.md)
