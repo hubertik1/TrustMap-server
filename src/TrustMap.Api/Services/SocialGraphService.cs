@@ -12,6 +12,7 @@ public sealed class SocialGraphService(TrustMapDbContext dbContext)
     {
         var friendIds = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x => x.UserAId == userId || x.UserBId == userId)
             .Select(x => x.UserAId == userId ? x.UserBId : x.UserAId)
             .ToListAsync(cancellationToken);
@@ -23,6 +24,7 @@ public sealed class SocialGraphService(TrustMapDbContext dbContext)
     {
         return await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .CountAsync(x => x.UserAId == userId || x.UserBId == userId, cancellationToken);
     }
 
@@ -55,6 +57,7 @@ public sealed class SocialGraphService(TrustMapDbContext dbContext)
 
         var friendships = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x =>
                 (x.UserAId == viewerUserId && targetIds.Contains(x.UserBId))
                 || (x.UserBId == viewerUserId && targetIds.Contains(x.UserAId)))
@@ -68,6 +71,7 @@ public sealed class SocialGraphService(TrustMapDbContext dbContext)
 
         var pendingRequests = await dbContext.FriendRequests
             .AsNoTracking()
+            .Where(x => x.SenderUser.Status == UserAccountStatus.Active && x.ReceiverUser.Status == UserAccountStatus.Active)
             .Where(x =>
                 x.Status == FriendRequestStatus.Pending
                 && ((x.SenderUserId == viewerUserId && targetIds.Contains(x.ReceiverUserId))

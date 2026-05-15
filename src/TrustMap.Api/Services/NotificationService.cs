@@ -153,6 +153,7 @@ public sealed class NotificationService(
                 .AsNoTracking()
                 .Include(x => x.ActorUser)
                 .Where(x => notificationIds.Contains(x.Id))
+                .Where(x => x.ActorUser.Status == UserAccountStatus.Active && x.RecipientUser.Status == UserAccountStatus.Active)
                 .ToListAsync(cancellationToken);
 
             if (persistedNotifications.Count == 0)
@@ -169,7 +170,7 @@ public sealed class NotificationService(
                 .ToDictionaryAsync(x => x.RecipientUserId, x => x.Count, cancellationToken);
 
             var deviceTokens = await dbContext.DeviceTokens
-                .Where(x => recipientIds.Contains(x.UserId) && x.RevokedAt == null)
+                .Where(x => recipientIds.Contains(x.UserId) && x.RevokedAt == null && x.User.Status == UserAccountStatus.Active)
                 .ToListAsync(cancellationToken);
 
             if (deviceTokens.Count == 0)
@@ -266,6 +267,7 @@ public sealed class NotificationService(
     {
         var friendIds = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x => x.UserAId == userId || x.UserBId == userId)
             .Select(x => x.UserAId == userId ? x.UserBId : x.UserAId)
             .ToListAsync(cancellationToken);

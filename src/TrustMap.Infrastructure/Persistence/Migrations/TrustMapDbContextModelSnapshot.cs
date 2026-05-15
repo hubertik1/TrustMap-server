@@ -842,6 +842,9 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -887,7 +890,9 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(2);
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -899,6 +904,8 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
                     b.HasIndex("NormalizedHandle")
                         .IsUnique();
 
+                    b.HasIndex("Status", "DeletedAtUtc");
+
                     b.ToTable("users", null, t =>
                         {
                             t.HasCheckConstraint("CK_users_friend_list_visibility", "\"FriendListVisibility\" IN (1, 2, 3, 4)");
@@ -909,7 +916,7 @@ namespace TrustMap.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_users_review_visibility", "\"ReviewVisibility\" IN (1, 2, 3, 4)");
 
-                            t.HasCheckConstraint("CK_users_status", "\"Status\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_users_status", "\"Status\" IN (1, 2, 3)");
                         });
                 });
 

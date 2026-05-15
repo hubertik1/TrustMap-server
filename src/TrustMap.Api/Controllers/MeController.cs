@@ -16,12 +16,13 @@ using TrustMap.Infrastructure.Storage;
 namespace TrustMap.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicyNames.AuthenticatedUser)]
 [Route("me")]
 public sealed class MeController(
     TrustMapDbContext dbContext,
     HandleGenerator handleGenerator,
     ProfileQueryService profileQueryService,
+    IAccountDeletionService accountDeletionService,
     IPhotoStorage photoStorage,
     IQuotaService quotaService,
     ILogger<MeController> logger,
@@ -32,6 +33,7 @@ public sealed class MeController(
     private readonly QuotaOptions _quotaOptions = quotaOptionsAccessor.Value;
 
     [HttpGet]
+    [Authorize]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public Task<UserProfileDto> Get(CancellationToken cancellationToken)
     {
@@ -40,6 +42,7 @@ public sealed class MeController(
     }
 
     [HttpPatch]
+    [Authorize]
     [Consumes("application/json")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public Task<ActionResult<UserProfileDto>> PatchJson(
@@ -47,7 +50,21 @@ public sealed class MeController(
         CancellationToken cancellationToken) =>
         PatchInternal(request, cancellationToken);
 
+    [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetRequiredUserId();
+        await accountDeletionService.DeleteAccountAsync(
+            currentUserId,
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken);
+
+        return NoContent();
+    }
+
     [HttpPut("avatar")]
+    [Authorize]
     [Consumes("multipart/form-data")]
     [EnableRateLimiting(RateLimitPolicyNames.Upload)]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
@@ -104,6 +121,7 @@ public sealed class MeController(
     }
 
     [HttpDelete("avatar")]
+    [Authorize]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<UserProfileDto>> DeleteAvatar(CancellationToken cancellationToken)
     {
@@ -121,6 +139,7 @@ public sealed class MeController(
     }
 
     [HttpPatch("privacy")]
+    [Authorize]
     [Consumes("application/json")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<UserProfileDto>> PatchPrivacy(

@@ -61,7 +61,8 @@ public sealed class CategoryMembershipService(
             .Where(x =>
                 x.UserId == currentUserId
                 && x.IsVisible
-                && !x.Category.IsDeleted)
+                && !x.Category.IsDeleted
+                && (x.Category.OwnerUserId == null || x.Category.OwnerUser!.Status == UserAccountStatus.Active))
             .ToListAsync(cancellationToken);
 
         return memberships
@@ -94,6 +95,7 @@ public sealed class CategoryMembershipService(
                 && !x.IsDeleted
                 && x.OwnerUserId.HasValue
                 && x.OwnerUserId != currentUserId
+                && x.OwnerUser!.Status == UserAccountStatus.Active
                 && friendIdList.Contains(x.OwnerUserId.Value))
             .OrderBy(x => x.Name)
             .ToListAsync(cancellationToken);

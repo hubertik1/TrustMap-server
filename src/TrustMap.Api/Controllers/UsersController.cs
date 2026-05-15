@@ -49,6 +49,7 @@ public sealed class UsersController(
         var currentUserId = User.GetRequiredUserId();
         var targetUser = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw ApiException.NotFound("User not found.", "user_not_found");
 
@@ -72,6 +73,7 @@ public sealed class UsersController(
 
         var users = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .Where(x => friendIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
@@ -83,6 +85,7 @@ public sealed class UsersController(
         var friendAccess = await privacyAccessService.GetAccessMapAsync(currentUserId, friendIds, cancellationToken);
 
         var result = friendships
+            .Where(x => users.ContainsKey(x.UserAId == id ? x.UserBId : x.UserAId))
             .Select(x =>
             {
                 var friendId = x.UserAId == id ? x.UserBId : x.UserAId;
@@ -133,7 +136,7 @@ public sealed class UsersController(
             cancellationToken);
         QuotaRejection.ThrowIfRejected(HttpContext, quotaResult);
 
-        var baseQuery = dbContext.Users.AsNoTracking();
+        var baseQuery = dbContext.Users.AsNoTracking().ActiveOnly();
         IQueryable<Domain.Entities.User>? matches = null;
 
         if (hasHandleQuery)

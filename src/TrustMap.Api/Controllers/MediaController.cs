@@ -87,6 +87,7 @@ public sealed class MediaController(
         var currentUserId = User.GetRequiredUserId();
         var user = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .Where(x => x.Id == userId)
             .Select(x => new
             {

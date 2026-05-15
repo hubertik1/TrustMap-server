@@ -30,11 +30,13 @@ public sealed class FriendsController(
         var friendIds = friendships.Select(x => x.UserAId == currentUserId ? x.UserBId : x.UserAId).Distinct().ToList();
         var users = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .Where(x => friendIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
         var accessMap = await privacyAccessService.GetAccessMapAsync(currentUserId, friendIds, cancellationToken);
 
         var result = friendships
+            .Where(x => users.ContainsKey(x.UserAId == currentUserId ? x.UserBId : x.UserAId))
             .Select(x =>
             {
                 var friendId = x.UserAId == currentUserId ? x.UserBId : x.UserAId;

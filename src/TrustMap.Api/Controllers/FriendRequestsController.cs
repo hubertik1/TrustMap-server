@@ -44,6 +44,7 @@ public sealed class FriendRequestsController(
 
         var receiver = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .SingleOrDefaultAsync(x => x.Id == request.ReceiverUserId, cancellationToken)
             ?? throw ApiException.NotFound("Target user not found.", "user_not_found");
 
@@ -115,6 +116,7 @@ public sealed class FriendRequestsController(
             .Include(x => x.SenderUser)
             .Include(x => x.ReceiverUser)
             .Where(x => x.ReceiverUserId == currentUserId && x.Status == FriendRequestStatus.Pending)
+            .Where(x => x.SenderUser.Status == UserAccountStatus.Active && x.ReceiverUser.Status == UserAccountStatus.Active)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -136,6 +138,7 @@ public sealed class FriendRequestsController(
             .Include(x => x.SenderUser)
             .Include(x => x.ReceiverUser)
             .Where(x => x.SenderUserId == currentUserId && x.Status == FriendRequestStatus.Pending)
+            .Where(x => x.SenderUser.Status == UserAccountStatus.Active && x.ReceiverUser.Status == UserAccountStatus.Active)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -162,6 +165,11 @@ public sealed class FriendRequestsController(
         if (request.ReceiverUserId != currentUserId)
         {
             throw ApiException.Forbidden("Only the receiver can accept this friend request.", "friend_request_forbidden");
+        }
+
+        if (request.SenderUser.Status != UserAccountStatus.Active || request.ReceiverUser.Status != UserAccountStatus.Active)
+        {
+            throw ApiException.NotFound("Friend request not found.", "friend_request_not_found");
         }
 
         if (request.Status != FriendRequestStatus.Pending)
@@ -205,6 +213,11 @@ public sealed class FriendRequestsController(
             throw ApiException.Forbidden("Only the receiver can reject this friend request.", "friend_request_forbidden");
         }
 
+        if (request.SenderUser.Status != UserAccountStatus.Active || request.ReceiverUser.Status != UserAccountStatus.Active)
+        {
+            throw ApiException.NotFound("Friend request not found.", "friend_request_not_found");
+        }
+
         request.Reject();
         await notificationService.MarkFriendRequestNotificationReadAsync(request.Id, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -226,6 +239,11 @@ public sealed class FriendRequestsController(
         if (request.SenderUserId != currentUserId)
         {
             throw ApiException.Forbidden("Only the sender can cancel this friend request.", "friend_request_forbidden");
+        }
+
+        if (request.SenderUser.Status != UserAccountStatus.Active || request.ReceiverUser.Status != UserAccountStatus.Active)
+        {
+            throw ApiException.NotFound("Friend request not found.", "friend_request_not_found");
         }
 
         request.Cancel();

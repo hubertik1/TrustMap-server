@@ -41,10 +41,13 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.FriendListVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Friends);
         builder.Property(x => x.ProfileVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Public);
         builder.Property(x => x.ProfilePictureVisibility).IsRequired().HasDefaultValue(VisibilityLevel.Public);
+        builder.Property(x => x.Status).IsRequired().HasDefaultValue(UserAccountStatus.Active);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
+        builder.Property(x => x.DeletedAtUtc);
 
         builder.HasIndex(x => x.NormalizedHandle).IsUnique();
         builder.HasIndex(x => x.NormalizedDisplayName);
+        builder.HasIndex(x => new { x.Status, x.DeletedAtUtc });
     }
 }

@@ -128,6 +128,8 @@ public sealed class NotificationsController(
 
         return query.Where(x =>
             x.RecipientUserId == currentUserId
+            && x.RecipientUser.Status == UserAccountStatus.Active
+            && x.ActorUser.Status == UserAccountStatus.Active
             && (
                 (x.Type == NotificationType.FriendRequestSent
                     && x.FriendRequest != null)

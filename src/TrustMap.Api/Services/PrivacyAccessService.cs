@@ -39,6 +39,15 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
         VisibilityLevel visibility,
         CancellationToken cancellationToken)
     {
+        var ownerIsActive = await dbContext.Users
+            .AsNoTracking()
+            .ActiveOnly()
+            .AnyAsync(x => x.Id == ownerUserId, cancellationToken);
+        if (!ownerIsActive)
+        {
+            return false;
+        }
+
         var accessMap = await GetAccessMapAsync(viewerUserId, [ownerUserId], cancellationToken);
         return accessMap.GetValueOrDefault(ownerUserId)?.CanAccess(visibility) ?? false;
     }
@@ -50,6 +59,7 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
     {
         var visibility = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .Where(x => x.Id == ownerUserId)
             .Select(x => new
             {
@@ -112,6 +122,7 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
 
         var friendOfFriendIds = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x =>
                 (friendIds.Contains(x.UserAId) && nonSelfTargetIds.Contains(x.UserBId))
                 || (friendIds.Contains(x.UserBId) && nonSelfTargetIds.Contains(x.UserAId)))
@@ -142,6 +153,7 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
 
         var friendOfFriendIds = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x => friendIds.Contains(x.UserAId) || friendIds.Contains(x.UserBId))
             .Select(x => friendIds.Contains(x.UserAId) ? x.UserBId : x.UserAId)
             .Distinct()
@@ -158,6 +170,7 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
     {
         var friendIds = await dbContext.Friendships
             .AsNoTracking()
+            .Where(x => x.UserA.Status == UserAccountStatus.Active && x.UserB.Status == UserAccountStatus.Active)
             .Where(x => x.UserAId == userId || x.UserBId == userId)
             .Select(x => x.UserAId == userId ? x.UserBId : x.UserAId)
             .ToListAsync(cancellationToken);

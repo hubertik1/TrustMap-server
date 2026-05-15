@@ -161,6 +161,31 @@ public sealed class Place
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void DetachDeletedUserReferences(Guid deletedUserId)
+    {
+        var changed = false;
+
+        if (CreatedByUserId == deletedUserId)
+        {
+            CreatedByUserId = null;
+            changed = true;
+        }
+
+        if (CustomDisplayNameSetByUserId == deletedUserId)
+        {
+            CustomDisplayName = null;
+            NormalizedCustomDisplayName = null;
+            CustomDisplayNameSetByUserId = null;
+            CustomDisplayNameUpdatedAt = null;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
     public static PlaceSourceType ResolveSourceType(string? provider, string? providerPlaceId)
     {
         return !string.IsNullOrWhiteSpace(provider)

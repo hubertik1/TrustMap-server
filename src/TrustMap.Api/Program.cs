@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -107,6 +108,8 @@ builder.Services.AddScoped<PrivacyAccessService>();
 builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveUserAuthorizationHandler>();
 builder.Services.AddScoped<IQuotaService, EfQuotaService>();
 builder.Services.AddOptions<PushNotificationOptions>()
     .Bind(builder.Configuration.GetSection(PushNotificationOptions.SectionName))
@@ -155,7 +158,19 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser()
+        .AddRequirements(new ActiveUserRequirement())
+        .Build();
+
+    options.AddPolicy(
+        AuthorizationPolicyNames.AuthenticatedUser,
+        new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .Build());
+});
 
 var app = builder.Build();
 

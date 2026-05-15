@@ -48,6 +48,8 @@ public sealed class User
 
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
 
+    public DateTime? DeletedAtUtc { get; private set; }
+
     public ICollection<AppleIdentity> AppleIdentities { get; } = new List<AppleIdentity>();
 
     public ICollection<RefreshToken> RefreshTokens { get; } = new List<RefreshToken>();
@@ -111,6 +113,30 @@ public sealed class User
         EnumGuard.EnsureDefined(status, nameof(status));
         Status = status;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkDeleted(DateTime utcNow)
+    {
+        if (utcNow.Kind == DateTimeKind.Local)
+        {
+            utcNow = utcNow.ToUniversalTime();
+        }
+
+        var deletedHandle = $"deleted-user-{Id:N}"[..25];
+        Handle = deletedHandle;
+        NormalizedHandle = TextNormalizer.NormalizeForLookup(deletedHandle);
+        DisplayName = "Deleted user";
+        NormalizedDisplayName = TextNormalizer.NormalizeForLookup(DisplayName);
+        Bio = null;
+        AvatarUrl = null;
+        Email = null;
+        ReviewVisibility = VisibilityLevel.Private;
+        FriendListVisibility = VisibilityLevel.Private;
+        ProfileVisibility = VisibilityLevel.Private;
+        ProfilePictureVisibility = VisibilityLevel.Private;
+        Status = UserAccountStatus.Deleted;
+        DeletedAtUtc ??= DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        UpdatedAt = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
     }
 
     private static void EnsureValidPrivacySettings(

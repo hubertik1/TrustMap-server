@@ -18,6 +18,7 @@ public sealed class ProfileQueryService(
     {
         var user = await dbContext.Users
             .AsNoTracking()
+            .ActiveOnly()
             .SingleOrDefaultAsync(x => x.Id == targetUserId, cancellationToken)
             ?? throw ApiException.NotFound("User not found.", "user_not_found");
 

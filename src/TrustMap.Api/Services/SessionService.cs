@@ -66,7 +66,7 @@ public sealed class SessionService(
 
         if (user.Status != UserAccountStatus.Active)
         {
-            throw ApiException.Forbidden("This account is blocked.", "account_blocked");
+            throw ApiException.Forbidden("This account is not active.", "account_not_active");
         }
 
         var accessToken = sessionTokenService.CreateAccessToken(user);
@@ -102,7 +102,7 @@ public sealed class SessionService(
 
         if (refreshToken.User.Status != UserAccountStatus.Active)
         {
-            throw ApiException.Forbidden("This account is blocked.", "account_blocked");
+            throw ApiException.Forbidden("This account is not active.", "account_not_active");
         }
 
         var replacement = sessionTokenService.CreateRefreshToken(refreshToken.UserId, userAgent, ipAddress);
