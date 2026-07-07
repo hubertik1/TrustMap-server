@@ -1,30 +1,56 @@
-# TrustMap-server
+# TrustMap Server
 
-Backend-first implementation for TrustMap. This repo replaces CloudKit/SwiftData as the source of truth with a REST API built on ASP.NET Core, SQLite and EF Core.
+TrustMap Server is the backend API for TrustMap, a social map for saving trusted places, reviews, dish notes and recommendations from friends. It replaces the app's earlier local or CloudKit-backed data model with a server-owned source of truth.
 
-## Architecture
+The API is built with ASP.NET Core, Entity Framework Core and SQLite. It handles Sign in with Apple, backend-issued JWT sessions, social graph workflows, review visibility, photo storage, push notifications and map/feed projections for the iOS and Mac Catalyst client.
+
+## Features
+
+- Sign in with Apple identity-token verification.
+- Short-lived JWT access tokens with rotating refresh tokens.
+- Active-user authorization and soft account deletion.
+- Friend requests, friendships and social visibility rules.
+- Place reviews and dish reviews with `private`, `friends` and `public` visibility.
+- Custom places, canonical place records and per-user category membership.
+- Authenticated photo upload and protected media delivery.
+- APNs push notification support with a no-op development fallback.
+- Rate limits and daily quotas for abuse-sensitive operations.
+- Health checks for liveness and database readiness.
+- End-to-end integration tests against an in-memory SQLite database.
+
+## Technology Stack
 
 - Runtime: ASP.NET Core Web API on .NET 10
-- Persistence: SQLite + EF Core 9
-- Auth: Sign in with Apple as upstream identity provider, backend-issued JWT access tokens and rotating refresh tokens
-- Storage: metadata in SQLite, photo blobs behind a storage abstraction with a local filesystem implementation for development
-- Visibility: enforced server-side for `private`, `friends`, `public`
-- Aggregates: dedicated `/feed` and `/map/places` endpoints so the iOS client does not have to reconstruct social projections locally
+- Persistence: SQLite with Entity Framework Core
+- Authentication: Sign in with Apple plus JWT bearer authentication
+- Storage: local filesystem storage behind a storage abstraction
+- Tests: xUnit integration tests using `WebApplicationFactory`
+- Local orchestration: Docker Compose
 
-## Solution layout
+## Repository Layout
 
-- `src/TrustMap.Api`
-  - controllers, DTOs, API-specific services, exception handling, health checks
-- `src/TrustMap.Domain`
-  - core entities and enums
-- `src/TrustMap.Infrastructure`
-  - EF Core, authentication helpers, photo storage, DI registration, migrations
-- `tests/TrustMap.IntegrationTests`
-  - end-to-end HTTP integration tests with SQLite in-memory and a fake Apple verifier
+```text
+.
+|-- docs/
+|   |-- ios-integration.md
+|   `-- push-notifications.md
+|-- src/
+|   |-- TrustMap.Api/              # Controllers, DTOs, API services, health checks
+|   |-- TrustMap.Domain/           # Domain entities, enums and shared guards
+|   `-- TrustMap.Infrastructure/   # EF Core, migrations, auth, storage and DI
+|-- tests/
+|   `-- TrustMap.IntegrationTests/ # HTTP-level integration tests
+|-- docker-compose.yml
+|-- Dockerfile
+|-- global.json
+`-- TrustMap.slnx
+```
 
-The structure is intentionally simple. There is no separate `Application` project because at this stage it would only add ceremony without reducing coupling.
+The solution intentionally stays small. There is no separate application layer yet because the current service boundaries are still simple enough to keep in the API and infrastructure projects.
 
-## Core domain model
+## Domain Model
+
+The core entities are:
 
 - `User`
 - `AppleIdentity`
@@ -35,107 +61,178 @@ The structure is intentionally simple. There is no separate `Application` projec
 - `PlaceReview`
 - `DishReview`
 - `Photo`
+- `Category`
+- `UserDeviceToken`
+- `UserNotification`
+- `QuotaUsage`
 
-Important simplifications:
+Important domain rules:
 
-- `Place` is a shared canonical catalog entry, not a private per-user record.
-- One user can create at most one `PlaceReview` per `Place`.
-- `DishReview` belongs to a user and place, and can optionally reference the user’s own `PlaceReview`.
-- `Photo` must belong to exactly one review parent.
+- A `Place` is a shared catalog record, not a private per-user object.
+- A user can have at most one `PlaceReview` per `Place`.
+- A `DishReview` belongs to a user and a place, and can optionally reference that user's own `PlaceReview`.
+- A `Photo` belongs to exactly one review parent.
+- Review visibility is enforced server-side.
 
-## Local development
+## API Overview
 
-### 1. Start API with Docker Compose
+Most endpoints require a valid TrustMap JWT. Public endpoints are limited to authentication and health checks.
+
+Main endpoint groups:
+
+- `/auth` for Apple sign-in, token refresh and logout.
+- `/me` for current-user profile, privacy settings, avatar upload and account deletion.
+- `/users` for user lookup and profile views.
+- `/friends` and `/friend-requests` for the social graph.
+- `/places` for place search and custom place management.
+- `/place-reviews` and `/dish-reviews` for review workflows.
+- `/photos` and `/media` for photo upload and protected media access.
+- `/map` for map pin and map place projections.
+- `/feed` for social activity.
+- `/notifications` and `/me/device-tokens` for notification state and APNs tokens.
+- `/health/live` and `/health/ready` for service health.
+
+Swagger is enabled only in the `Development` environment.
+
+## Local Development
+
+### Prerequisites
+
+- .NET SDK `10.0.201` or compatible
+- Docker Desktop, optional but recommended for the fastest local start
+- EF Core CLI tools if you want to create or apply migrations manually
+
+Install EF tooling if needed:
+
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+### Run With Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-Services:
+The API listens on:
 
-- API on your Mac: [http://localhost:5104](http://localhost:5104)
-- SQLite database file inside the container: `/app/App_Data/trustmap.db`
+```text
+http://localhost:5104
+```
 
-From another device on the same LAN, use:
+For a real iPhone on the same Wi-Fi network, use your Mac's LAN hostname or LAN IP:
 
-- `http://<your-mac-lan-host>:5104`
-- `http://<your-mac-lan-ip>:5104`
+```text
+http://<your-mac-hostname>.local:5104
+http://<your-lan-ip>:5104
+```
 
-### 2. Run API directly from the host
+Docker Compose stores the SQLite database and uploaded photos in Docker volumes.
+
+### Run Directly On The Host
+
+Apply migrations:
 
 ```bash
 dotnet ef database update \
   --project src/TrustMap.Infrastructure/TrustMap.Infrastructure.csproj \
   --startup-project src/TrustMap.Api/TrustMap.Api.csproj
+```
 
+Start the API:
+
+```bash
 ASPNETCORE_ENVIRONMENT=Development \
 dotnet run --project src/TrustMap.Api/TrustMap.Api.csproj --no-launch-profile
 ```
 
-This creates the local SQLite file at `src/TrustMap.Api/App_Data/trustmap.db` if it does not exist yet.
-In Development, the API binds to `http://0.0.0.0:5104`, so real iPhones on the same Wi-Fi network can reach it.
+In development, the API binds to `http://0.0.0.0:5104` so physical devices on the same LAN can reach it.
+
+Local host-run data is stored under:
+
+```text
+src/TrustMap.Api/App_Data/
+src/TrustMap.Api/storage/
+```
+
+Both paths are ignored by Git.
 
 ## Configuration
 
-Main settings live in:
+Base settings live in:
 
-- `src/TrustMap.Api/appsettings.json`
-- `src/TrustMap.Api/appsettings.Development.json`
+```text
+src/TrustMap.Api/appsettings.json
+src/TrustMap.Api/appsettings.Development.json
+```
 
-Environment variables override appsettings using standard ASP.NET naming.
+Environment variables override appsettings using standard ASP.NET Core configuration names.
 
-Production remains driven by `appsettings.json` plus environment variables from the hosting platform. The LAN-friendly listener lives only in `appsettings.Development.json`.
+Important settings:
 
-`Jwt__SigningKey` must come from an environment variable or secret store in Production. The development signing key in `appsettings.Development.json`, `docker-compose.yml`, and `.env.example` is local-only and is rejected during Production startup.
+```text
+ConnectionStrings__Database
+Database__ApplyMigrationsOnStartup
+Jwt__Issuer
+Jwt__Audience
+Jwt__SigningKey
+Jwt__AccessTokenMinutes
+Jwt__RefreshTokenDays
+AppleAuth__Issuer
+AppleAuth__AllowedAudiences__0
+PhotoStorage__Provider
+PhotoStorage__RootPath
+PhotoStorage__RequestPath
+PushNotifications__Provider
+PushNotifications__Apns__Enabled
+PushNotifications__Apns__TeamId
+PushNotifications__Apns__KeyId
+PushNotifications__Apns__BundleId
+PushNotifications__Apns__PrivateKeyBase64
+```
 
-### Required settings
+Development placeholder values are provided in `.env.example`, `docker-compose.yml` and `appsettings.Development.json`. Production must supply a strong `Jwt__SigningKey` through the hosting environment or a secret store. The default development signing key is rejected during production startup.
 
-- `ConnectionStrings__Database`
-- `Jwt__Issuer`
-- `Jwt__Audience`
-- `Jwt__SigningKey`
-- `AppleAuth__AllowedAudiences__0`
-- `PhotoStorage__Provider`
-- `PhotoStorage__RootPath`
-- `PhotoStorage__RequestPath`
-
-### Example values
+Example development configuration:
 
 ```text
 ConnectionStrings__Database=Data Source=App_Data/trustmap.db;Foreign Keys=True;
+Database__ApplyMigrationsOnStartup=true
 Jwt__Issuer=TrustMap.Api
 Jwt__Audience=TrustMap.iOS
-# Development-only placeholder. Generate a strong secret for Production.
 Jwt__SigningKey=trustmap-local-development-signing-key-change-before-production
-AppleAuth__AllowedAudiences__0=com.your.bundle.id
+AppleAuth__AllowedAudiences__0=com.example.trustmap
 PhotoStorage__Provider=local
 PhotoStorage__RootPath=storage/photos
 PhotoStorage__RequestPath=/uploads
 ```
 
-## iOS Local scheme
+## Apple Sign In
 
-The iOS app resolves relative media URLs against its configured `API_BASE_URL`. For local testing:
+The backend validates Apple identity tokens against Apple's OpenID configuration and signing keys. `AppleAuth:AllowedAudiences` must include the bundle ID or service ID used by the client.
 
-1. Start the backend with one of the development flows above.
-2. Choose a LAN-reachable host for your Mac:
-   - `<your-mac-name>.local`
-   - or your LAN IP such as `192.168.1.42`
-3. In `TrustMap-app/Config/Local.override.xcconfig`, set:
+If the Apple identity token includes a `nonce` claim, the iOS client must send the original raw nonce in the sign-in request. The backend maps Apple `sub` values to local `AppleIdentity` records.
 
-```xcconfig
-TRUSTMAP_LAN_HOST = <your-mac-name>.local
+## Push Notifications
+
+TrustMap supports APNs token-based authentication. Development can use the built-in no-op sender. Production APNs settings must be provided as environment variables or hosting-platform secrets.
+
+The preferred Azure App Service format is:
+
+```text
+PushNotifications__Provider=apns
+PushNotifications__Apns__Enabled=true
+PushNotifications__Apns__TeamId=...
+PushNotifications__Apns__KeyId=...
+PushNotifications__Apns__BundleId=com.example.trustmap
+PushNotifications__Apns__PrivateKeyBase64=...
 ```
 
-4. Run the `Local` scheme in Xcode.
+See [docs/push-notifications.md](docs/push-notifications.md) for details.
 
-No source-code URL edits are required. Switching to production is done by running the `Prod` scheme.
+## Database Migrations
 
-## Migrations
-
-The initial migration already exists in `src/TrustMap.Infrastructure/Persistence/Migrations`.
-
-Create a new migration:
+Create a migration:
 
 ```bash
 dotnet ef migrations add <MigrationName> \
@@ -151,13 +248,6 @@ dotnet ef database update \
   --startup-project src/TrustMap.Api/TrustMap.Api.csproj
 ```
 
-## Health checks
-
-- `GET /health/live`
-  - process liveness only
-- `GET /health/ready`
-  - validates database connectivity
-
 ## Testing
 
 Run the full suite:
@@ -166,27 +256,32 @@ Run the full suite:
 dotnet test TrustMap.slnx
 ```
 
-Covered flows:
+The tests cover authentication, token refresh, logout, friend requests, friendships, privacy rules, map projections, feed projections, upload security, media delivery, notifications, quotas and account deletion.
 
-- Apple auth exchange
-- refresh/logout
-- friend request send/accept/reject/cancel
-- list friends
-- place review CRUD
-- dish review CRUD
-- feed visibility
-- map visibility
+## Deployment Notes
 
-## Apple auth notes
+Before running in production:
 
-- The backend verifies Apple identity tokens using Apple’s OpenID configuration and signing keys.
-- `AppleAuth:AllowedAudiences` must contain the real iOS bundle ID or Apple Service ID used by TrustMap.
-- If the Apple token contains a `nonce` claim, the client must also send the original `rawNonce`.
-- `authorizationCode` is accepted by contract for future extensibility, but the current implementation authenticates by validating the Apple identity token and mapping `sub` to `AppleIdentity`.
+- Set `ASPNETCORE_ENVIRONMENT=Production`.
+- Use a strong `Jwt__SigningKey` from secret storage.
+- Configure the real Apple bundle ID or service ID in `AppleAuth__AllowedAudiences`.
+- Keep APNs private keys outside the repository.
+- Keep SQLite data and uploaded files on persistent storage.
+- Keep `Database__ApplyMigrationsOnStartup` enabled only if that matches your deployment strategy.
+- Put the API behind HTTPS.
+- Monitor rate-limit rejections, auth failures and upload volume.
 
-## API and iOS integration guide
+## iOS Client Integration
 
-See:
+The companion iOS and Mac Catalyst client reads its API base URL from build configuration. For local device testing, start this server and set the app's `TRUSTMAP_LAN_HOST` in `TrustMap-app/Config/Local.override.xcconfig`.
 
-- [docs/ios-integration.md](/Users/hubert/Projects/TrustMap/TrustMap-server/docs/ios-integration.md)
-- [docs/push-notifications.md](/Users/hubert/Projects/TrustMap/TrustMap-server/docs/push-notifications.md)
+More integration details:
+
+- [docs/ios-integration.md](docs/ios-integration.md)
+- [docs/push-notifications.md](docs/push-notifications.md)
+
+## Security Notes
+
+Do not commit local databases, uploaded photos, APNs keys, `.env` files or production signing keys. The repository `.gitignore` excludes the standard local data paths used by the API.
+
+Public knowledge of the API URL is expected for a mobile backend. Access control is enforced through JWT authentication, active-user checks, visibility rules, rate limits and quotas.
