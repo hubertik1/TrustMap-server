@@ -18,6 +18,7 @@ internal sealed class FakeAppleIdentityTokenVerifier : IAppleIdentityTokenVerifi
             Subject: subject,
             Email: email,
             EmailVerified: true,
-            IsPrivateEmail: false));
+            IsPrivateEmail: false,
+            Audience: "com.hubert.TrustMap"));
     }
 }

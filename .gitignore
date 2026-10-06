@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+*.p8
 
 # Local uploaded photos
 /storage/

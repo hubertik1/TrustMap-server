@@ -34,6 +34,16 @@ public sealed class AppleIdentity
 
     public DateTime LastLoginAt { get; private set; }
 
+    public string? ClientId { get; private set; }
+
+    public string? ProtectedRefreshToken { get; private set; }
+
+    public void StoreRefreshToken(string clientId, string protectedRefreshToken)
+    {
+        ClientId = clientId;
+        ProtectedRefreshToken = protectedRefreshToken;
+    }
+
     public User User { get; private set; } = null!;
 
     public void UpdateLoginMetadata(string? email, bool? emailVerified, bool? isPrivateEmail)

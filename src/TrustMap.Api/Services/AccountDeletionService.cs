@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrustMap.Api.Common;
@@ -14,29 +12,50 @@ namespace TrustMap.Api.Services;
 
 public interface IAccountDeletionService
 {
-    Task DeleteAccountAsync(Guid userId, string? ipAddress, CancellationToken cancellationToken);
+    Task<AccountDeletionResult> DeleteAccountAsync(Guid userId, string? ipAddress, CancellationToken cancellationToken);
 }
+
+public sealed record AccountDeletionResult(bool RequiresManualAppleRevocation, bool CleanupPending);
 
 public sealed class AccountDeletionService(
     TrustMapDbContext dbContext,
-    IPhotoStorage photoStorage,
+    AccountDeletionJobProcessor jobProcessor,
     TimeProvider timeProvider,
     IOptions<PhotoStorageOptions> photoStorageOptionsAccessor,
     ILogger<AccountDeletionService> logger) : IAccountDeletionService
 {
     private readonly PhotoStorageOptions _photoStorageOptions = photoStorageOptionsAccessor.Value;
 
-    public async Task DeleteAccountAsync(Guid userId, string? ipAddress, CancellationToken cancellationToken)
+    public async Task<AccountDeletionResult> DeleteAccountAsync(Guid userId, string? ipAddress, CancellationToken cancellationToken)
     {
         var storageKeysToDelete = new HashSet<string>(StringComparer.Ordinal);
+        var jobs = new List<AccountDeletionJob>();
+        var requiresManualAppleRevocation = false;
 
         await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
         {
             var user = await dbContext.Users.SingleOrDefaultAsync(x => x.Id == userId, cancellationToken);
-            if (user is null)
+            if (user is null || user.Status == UserAccountStatus.Deleted)
             {
                 await transaction.CommitAsync(cancellationToken);
-                return;
+                return new AccountDeletionResult(false, false);
+            }
+
+            var now = timeProvider.GetUtcNow().UtcDateTime;
+            var identities = await dbContext.AppleIdentities.AsNoTracking().Where(x => x.UserId == userId)
+                .ToListAsync(cancellationToken);
+            foreach (var identity in identities)
+            {
+                if (string.IsNullOrWhiteSpace(identity.ProtectedRefreshToken) || string.IsNullOrWhiteSpace(identity.ClientId))
+                {
+                    requiresManualAppleRevocation = true;
+                    continue;
+                }
+                jobs.Add(new AccountDeletionJob
+                {
+                    Kind = AccountDeletionJobKind.AppleRevocation, Payload = identity.ProtectedRefreshToken,
+                    ClientId = identity.ClientId, CreatedAtUtc = now, NextAttemptAtUtc = now
+                });
             }
 
             CollectAvatarStorageKeys(user.AvatarUrl, storageKeysToDelete);
@@ -71,11 +90,45 @@ public sealed class AccountDeletionService(
 
             user.MarkDeleted(timeProvider.GetUtcNow().UtcDateTime);
 
+            jobs.AddRange(storageKeysToDelete.Select(key => new AccountDeletionJob
+            {
+                Kind = AccountDeletionJobKind.Media, Payload = key, CreatedAtUtc = now, NextAttemptAtUtc = now
+            }));
+            dbContext.AccountDeletionJobs.AddRange(jobs);
+
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
-        await DeleteStorageKeysAfterCommitAsync(userId, storageKeysToDelete);
+        // Best effort now; the durable outbox survives timeouts, process crashes and provider outages.
+        // External services are called only after the database transaction commits.
+        var ids = jobs.Select(x => x.Id).ToList();
+        if (ids.Count > 0)
+        {
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                await jobProcessor.ProcessPendingAsync(timeout.Token, ids);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning("Account deletion cleanup deferred ({ExceptionType}); queued for retry.", exception.GetType().Name);
+            }
+        }
+        var pending = ids.Count > 0;
+        if (pending)
+        {
+            try
+            {
+                pending = await dbContext.AccountDeletionJobs.AsNoTracking()
+                    .AnyAsync(x => ids.Contains(x.Id), CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning("Account deletion cleanup status unavailable ({ExceptionType}); cleanup remains scheduled.", exception.GetType().Name);
+            }
+        }
+        return new AccountDeletionResult(requiresManualAppleRevocation, pending);
     }
 
     private async Task CollectPhotoStorageKeysAsync(
@@ -245,25 +298,6 @@ public sealed class AccountDeletionService(
         }
     }
 
-    private async Task DeleteStorageKeysAfterCommitAsync(Guid userId, IReadOnlyCollection<string> storageKeys)
-    {
-        foreach (var storageKey in storageKeys)
-        {
-            try
-            {
-                await photoStorage.DeleteAsync(storageKey, CancellationToken.None);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Failed to delete account media blob for user {UserId}; storage key hash prefix {StorageKeyHashPrefix}.",
-                    userId,
-                    BuildStorageKeyHashPrefix(storageKey));
-            }
-        }
-    }
-
     private static void AddStorageKey(ISet<string> storageKeys, string? storageKey)
     {
         if (!string.IsNullOrWhiteSpace(storageKey))
@@ -293,9 +327,4 @@ public sealed class AccountDeletionService(
         }
     }
 
-    private static string BuildStorageKeyHashPrefix(string storageKey)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(storageKey));
-        return Convert.ToHexString(hash.AsSpan(0, 6)).ToLowerInvariant();
-    }
 }

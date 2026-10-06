@@ -52,15 +52,16 @@ public sealed class MeController(
 
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken)
+    [ProducesResponseType<AccountDeletionResult>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken, [FromQuery] bool includeResult = false)
     {
         var currentUserId = User.GetRequiredUserId();
-        await accountDeletionService.DeleteAccountAsync(
+        var result = await accountDeletionService.DeleteAccountAsync(
             currentUserId,
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             cancellationToken);
 
-        return NoContent();
+        return includeResult ? Ok(result) : NoContent();
     }
 
     [HttpPut("avatar")]

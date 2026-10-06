@@ -24,6 +24,7 @@ public sealed class AuthController(
     {
         var session = await sessionService.SignInWithAppleAsync(
             request.IdentityToken,
+            request.AuthorizationCode,
             request.RawNonce,
             request.Email,
             request.DisplayName,

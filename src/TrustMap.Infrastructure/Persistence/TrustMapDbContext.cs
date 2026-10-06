@@ -17,6 +17,8 @@ public sealed class TrustMapDbContext(DbContextOptions<TrustMapDbContext> option
 
     public DbSet<AppleIdentity> AppleIdentities => Set<AppleIdentity>();
 
+    public DbSet<AccountDeletionJob> AccountDeletionJobs => Set<AccountDeletionJob>();
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();

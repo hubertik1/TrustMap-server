@@ -9,4 +9,10 @@ public sealed class AppleAuthOptions
     public List<string> AllowedAudiences { get; set; } = [];
 
     public int ClockSkewMinutes { get; set; } = 2;
+
+    public bool TokenManagementEnabled { get; set; }
+    public string TeamId { get; set; } = "";
+    public string KeyId { get; set; } = "";
+    public string PrivateKeyPem { get; set; } = "";
+    public string PrivateKeyPath { get; set; } = "";
 }

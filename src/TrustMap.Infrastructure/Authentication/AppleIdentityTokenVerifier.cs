@@ -73,7 +73,8 @@ public sealed class AppleIdentityTokenVerifier : IAppleIdentityTokenVerifier
             Subject: subject,
             Email: principal.FindFirst("email")?.Value,
             EmailVerified: ParseBooleanClaim(principal.FindFirst("email_verified")?.Value),
-            IsPrivateEmail: ParseBooleanClaim(principal.FindFirst("is_private_email")?.Value));
+            IsPrivateEmail: ParseBooleanClaim(principal.FindFirst("is_private_email")?.Value),
+            Audience: principal.FindFirst("aud")?.Value);
     }
 
     private static void ValidateNonce(ClaimsPrincipal principal, string? rawNonce)

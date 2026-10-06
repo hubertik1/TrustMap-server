@@ -11,10 +11,14 @@ public sealed class SessionService(
     TrustMapDbContext dbContext,
     IAppleIdentityTokenVerifier appleIdentityTokenVerifier,
     SessionTokenService sessionTokenService,
-    HandleGenerator handleGenerator)
+    HandleGenerator handleGenerator,
+    IAppleTokenClient appleTokenClient,
+    AppleRefreshTokenProtection appleTokenProtection,
+    Microsoft.Extensions.Options.IOptions<AppleAuthOptions> appleOptions)
 {
     public async Task<AuthSessionResult> SignInWithAppleAsync(
         string identityToken,
+        string? authorizationCode,
         string? rawNonce,
         string? email,
         string? displayName,
@@ -67,6 +71,25 @@ public sealed class SessionService(
         if (user.Status != UserAccountStatus.Active)
         {
             throw ApiException.Forbidden("This account is not active.", "account_not_active");
+        }
+
+        if (appleOptions.Value.TokenManagementEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(authorizationCode) || string.IsNullOrWhiteSpace(applePrincipal.Audience))
+                throw ApiException.BadRequest("A fresh Apple authorization code is required. Sign in with Apple again.", "apple_authorization_code_required");
+            try
+            {
+                var token = await appleTokenClient.ExchangeAsync(authorizationCode, applePrincipal.Audience,
+                    applePrincipal.Subject, rawNonce, cancellationToken);
+                appleIdentity.StoreRefreshToken(applePrincipal.Audience, appleTokenProtection.Protect(token));
+            }
+            catch (AppleTokenException exception)
+            {
+                if (exception.InvalidGrant)
+                    throw ApiException.Unauthorized("The Apple authorization code is invalid or expired. Sign in again.", "invalid_apple_authorization_code");
+                throw new ApiException(System.Net.HttpStatusCode.ServiceUnavailable, "Service Unavailable",
+                    "Apple sign-in is temporarily unavailable. Please try again.", "apple_token_service_unavailable");
+            }
         }
 
         var accessToken = sessionTokenService.CreateAccessToken(user);

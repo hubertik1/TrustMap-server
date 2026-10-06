@@ -16,6 +16,8 @@ internal sealed class AppleIdentityConfiguration : IEntityTypeConfiguration<Appl
         builder.Property(x => x.Email).HasMaxLength(320);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.LastLoginAt).IsRequired();
+        builder.Property(x => x.ClientId).HasMaxLength(255);
+        builder.Property(x => x.ProtectedRefreshToken).HasMaxLength(16384);
 
         builder.HasIndex(x => x.Subject).IsUnique();
         builder.HasIndex(x => x.UserId).IsUnique();

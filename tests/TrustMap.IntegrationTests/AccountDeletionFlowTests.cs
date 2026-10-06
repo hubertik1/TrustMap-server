@@ -264,13 +264,21 @@ public sealed class AccountDeletionFlowTests
             var deletedUser = await dbContext.Users.SingleAsync(x => x.Id == alice.Session.User.Id);
             Assert.Equal(UserAccountStatus.Deleted, deletedUser.Status);
             Assert.Empty(await dbContext.Photos.Where(x => x.OwnerUserId == alice.Session.User.Id).ToListAsync());
+            var pending = await dbContext.AccountDeletionJobs.ToListAsync();
+            Assert.Equal(6, pending.Count);
+            Assert.All(pending, job =>
+            {
+                Assert.Equal(AccountDeletionJobKind.Media, job.Kind);
+                Assert.Equal(1, job.Attempts);
+                Assert.True(job.NextAttemptAtUtc > job.CreatedAtUtc);
+            });
         }
 
         Assert.Contains(
             logs.Entries,
             entry => entry.Level == LogLevel.Warning
-                && entry.CategoryName.EndsWith(".AccountDeletionService", StringComparison.Ordinal)
-                && entry.Message.Contains("Failed to delete account media blob", StringComparison.Ordinal));
+                && entry.CategoryName.EndsWith(".AccountDeletionJobProcessor", StringComparison.Ordinal)
+                && entry.Message.Contains("queued for retry", StringComparison.Ordinal));
     }
 
     private static async Task<(TestApiClient Client, AuthSessionDto Session)> CreateAuthenticatedClientAsync(

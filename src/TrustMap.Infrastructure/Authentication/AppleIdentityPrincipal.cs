@@ -4,4 +4,5 @@ public sealed record AppleIdentityPrincipal(
     string Subject,
     string? Email,
     bool? EmailVerified,
-    bool? IsPrivateEmail);
+    bool? IsPrivateEmail,
+    string? Audience = null);

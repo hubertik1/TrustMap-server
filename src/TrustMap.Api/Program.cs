@@ -111,6 +111,17 @@ builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+builder.Services.AddScoped<AccountDeletionJobProcessor>();
+builder.Services.AddHostedService<AccountDeletionWorker>();
+builder.Services.AddSingleton<AppleRefreshTokenProtection>();
+builder.Services.AddOptions<AppleAuthOptions>().ValidateOnStart();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<AppleAuthOptions>, AppleTokenOptionsValidator>();
+builder.Services.PostConfigure<AppleAuthOptions>(options =>
+{
+    if (!string.IsNullOrWhiteSpace(options.PrivateKeyPath))
+        options.PrivateKeyPath = Path.GetFullPath(options.PrivateKeyPath, builder.Environment.ContentRootPath);
+});
+builder.Services.AddHttpClient<IAppleTokenClient, AppleTokenClient>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddOptions<ModerationOptions>()
     .Bind(builder.Configuration.GetSection(ModerationOptions.SectionName)).ValidateOnStart();
 builder.Services.PostConfigure<ModerationOptions>(options =>
@@ -205,6 +216,9 @@ var app = builder.Build();
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PushNotificationOptions>>().Value;
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ModerationOptions>>().Value;
+_ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AppleAuthOptions>>().Value;
+if (!app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AppleAuthOptions>>().Value.TokenManagementEnabled)
+    app.Logger.LogWarning("Apple token management is disabled. Configure Sign in with Apple credentials to enable automatic authorization revocation.");
 
 app.UseExceptionHandler();
 

@@ -9,6 +9,7 @@ The API is built with ASP.NET Core, Entity Framework Core and SQLite. It handles
 - Sign in with Apple identity-token verification.
 - Short-lived JWT access tokens with rotating refresh tokens.
 - Active-user authorization and soft account deletion.
+- Apple grant exchange and authorization revocation, with a durable account-deletion outbox for media and Apple retries. See [account deletion setup](docs/account-deletion.md).
 - Friend requests, friendships and social visibility rules.
 - Bilateral user blocking with a settings list for unblocking.
 - One-tap review reports with copied evidence and moderation action links; private `.eml` files by default, optional SMTP delivery.
