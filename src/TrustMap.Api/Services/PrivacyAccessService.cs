@@ -76,8 +76,7 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
         var accessMap = await GetAccessMapAsync(viewerUserId, [ownerUserId], cancellationToken);
         var access = accessMap[ownerUserId];
 
-        return access.CanAccess(visibility.ProfileVisibility)
-            && access.CanAccess(visibility.ReviewVisibility);
+        return access.IsSelf || access.IsDirectFriend;
     }
 
     public async Task<bool> CanViewerAccessPlaceAsync(

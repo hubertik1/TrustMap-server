@@ -28,29 +28,18 @@ public sealed class ProfileQueryService(
 
         var accessMap = await privacyAccessService.GetAccessMapAsync(viewerUserId, [targetUserId], cancellationToken);
         var access = accessMap[targetUserId];
-        var canViewProfile = access.CanAccess(user.ProfileVisibility);
-        var canViewFriends = canViewProfile && access.CanAccess(user.FriendListVisibility);
-        var canViewReviews = canViewProfile && access.CanAccess(user.ReviewVisibility);
+        var canViewProfile = true;
+        var canViewFriends = access.IsSelf
+            || (access.IsDirectFriend && user.FriendListVisibility != TrustMap.Domain.Enums.VisibilityLevel.Private);
+        var canViewReviews = access.IsSelf || access.IsDirectFriend;
         var canViewProfilePicture = access.CanAccess(user.ProfilePictureVisibility);
 
-        var socialAccess = await privacyAccessService.GetViewerSocialAccessAsync(viewerUserId, cancellationToken);
-        var friendCount = canViewProfile && canViewFriends
-            ? await socialGraphService.GetFriendCountAsync(targetUserId, cancellationToken)
-            : 0;
-
-        var visiblePlaceReviewCount = canViewProfile && canViewReviews
-            ? await dbContext.PlaceReviews
-                .AsNoTracking()
-                .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
-                .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken)
-            : 0;
-
-        var visibleDishReviewCount = canViewProfile && canViewReviews
-            ? await dbContext.DishReviews
-                .AsNoTracking()
-                .VisibleToViewer(viewerUserId, socialAccess.FriendIds, socialAccess.FriendOfFriendIds)
-                .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken)
-            : 0;
+        var friendCount = await socialGraphService.GetFriendCountAsync(targetUserId, cancellationToken);
+        // Counts are public; review content is restricted independently.
+        var visiblePlaceReviewCount = await dbContext.PlaceReviews.AsNoTracking()
+            .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken);
+        var visibleDishReviewCount = await dbContext.DishReviews.AsNoTracking()
+            .CountAsync(x => x.AuthorUserId == targetUserId, cancellationToken);
 
         return user.ToProfileDto(
             relationshipStatus,

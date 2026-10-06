@@ -129,7 +129,7 @@ public sealed class MediaController(
         return await privacyAccessService.CanViewerAccessAsync(
             currentUserId,
             reviewAccess.AuthorUserId,
-            reviewAccess.Visibility,
+            reviewAccess.Visibility == VisibilityLevel.Private ? VisibilityLevel.Private : VisibilityLevel.Friends,
             cancellationToken);
     }
 

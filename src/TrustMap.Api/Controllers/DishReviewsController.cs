@@ -161,7 +161,7 @@ public sealed class DishReviewsController(
             place.Id,
             currentUserId,
             request.PlaceReviewId,
-            request.Visibility,
+            NormalizeReviewVisibility(request.Visibility),
             request.DishName,
             request.Rating,
             request.Body,
@@ -174,7 +174,7 @@ public sealed class DishReviewsController(
             currentUserId,
             place.Id,
             review.Id,
-            request.Visibility,
+            NormalizeReviewVisibility(request.Visibility),
             cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
@@ -217,7 +217,7 @@ public sealed class DishReviewsController(
 
         if (!categoryChanged
             && !review.HasChanges(
-                request.Visibility,
+                NormalizeReviewVisibility(request.Visibility),
                 request.DishName,
                 request.Rating,
                 request.Body,
@@ -228,8 +228,8 @@ public sealed class DishReviewsController(
         }
 
         var previousVisibility = review.Visibility;
-        var reviewFieldsChanged = review.Update(request.Visibility, request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
-        if (previousVisibility != VisibilityLevel.Private && request.Visibility == VisibilityLevel.Private)
+        var reviewFieldsChanged = review.Update(NormalizeReviewVisibility(request.Visibility), request.DishName, request.Rating, request.Body, request.PriceAmount, request.CurrencyCode);
+        if (previousVisibility != VisibilityLevel.Private && NormalizeReviewVisibility(request.Visibility) == VisibilityLevel.Private)
         {
             await notificationService.DeleteReviewNotificationsAsync(dishReviewId: review.Id, cancellationToken: cancellationToken);
         }
@@ -329,4 +329,7 @@ public sealed class DishReviewsController(
             $"Dish reviews can be created only in the {CategoryAssignmentService.RestaurantsCategoryName} category.",
             "dish_review_category_not_supported");
     }
+    private static VisibilityLevel NormalizeReviewVisibility(VisibilityLevel visibility) =>
+        visibility == VisibilityLevel.Private ? VisibilityLevel.Private : VisibilityLevel.Friends;
+
 }

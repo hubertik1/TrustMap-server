@@ -137,22 +137,12 @@ public sealed class NotificationsController(
                     && x.PlaceReview != null
                     && (
                         x.PlaceReview.AuthorUserId == currentUserId
-                        || x.PlaceReview.Visibility == VisibilityLevel.Public
-                        || (x.PlaceReview.Visibility == VisibilityLevel.Friends
-                            && friendIds.Contains(x.PlaceReview.AuthorUserId))
-                        || (x.PlaceReview.Visibility == VisibilityLevel.FriendsOfFriends
-                            && (friendIds.Contains(x.PlaceReview.AuthorUserId)
-                                || friendOfFriendIds.Contains(x.PlaceReview.AuthorUserId)))))
+                        || (x.PlaceReview.Visibility != VisibilityLevel.Private && friendIds.Contains(x.PlaceReview.AuthorUserId))))
                 || (x.Type == NotificationType.DishReviewAdded
                     && x.DishReview != null
                     && (
                         x.DishReview.AuthorUserId == currentUserId
-                        || x.DishReview.Visibility == VisibilityLevel.Public
-                        || (x.DishReview.Visibility == VisibilityLevel.Friends
-                            && friendIds.Contains(x.DishReview.AuthorUserId))
-                        || (x.DishReview.Visibility == VisibilityLevel.FriendsOfFriends
-                            && (friendIds.Contains(x.DishReview.AuthorUserId)
-                                || friendOfFriendIds.Contains(x.DishReview.AuthorUserId)))))
+                        || (x.DishReview.Visibility != VisibilityLevel.Private && friendIds.Contains(x.DishReview.AuthorUserId))))
             ));
     }
 

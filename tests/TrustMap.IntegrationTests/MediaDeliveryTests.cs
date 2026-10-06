@@ -92,7 +92,7 @@ public sealed class MediaDeliveryTests
     }
 
     [Fact]
-    public async Task PublicReviewPhotoRequiresAuthenticationAndAllowsAuthenticatedViewer()
+    public async Task LegacyPublicReviewPhotoRequiresAuthenticationAndFriendship()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -105,7 +105,9 @@ public sealed class MediaDeliveryTests
         var authenticatedResponse = await bob.Client.HttpClient.GetAsync(upload.Dto.Url);
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, authenticatedResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, authenticatedResponse.StatusCode);
+        await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
+        Assert.Equal(HttpStatusCode.OK, (await bob.Client.HttpClient.GetAsync(upload.Dto.Url)).StatusCode);
     }
 
     [Fact]

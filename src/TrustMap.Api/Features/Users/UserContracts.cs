@@ -52,13 +52,13 @@ public sealed class UpdateMeRequest
 public sealed class UpdateMePrivacyRequest
 {
     [DefinedEnum]
-    public VisibilityLevel ReviewVisibility { get; init; }
+    public VisibilityLevel ReviewVisibility { get; init; } = VisibilityLevel.Friends;
 
     [DefinedEnum]
     public VisibilityLevel FriendListVisibility { get; init; }
 
     [DefinedEnum]
-    public VisibilityLevel ProfileVisibility { get; init; }
+    public VisibilityLevel ProfileVisibility { get; init; } = VisibilityLevel.Public;
 
     [DefinedEnum]
     public VisibilityLevel ProfilePictureVisibility { get; init; }

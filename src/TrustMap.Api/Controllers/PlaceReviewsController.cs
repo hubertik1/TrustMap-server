@@ -139,7 +139,7 @@ public sealed class PlaceReviewsController(
             Guid.CreateVersion7(),
             place.Id,
             currentUserId,
-            request.Visibility,
+            NormalizeReviewVisibility(request.Visibility),
             request.Rating,
             request.Title,
             request.Body);
@@ -150,7 +150,7 @@ public sealed class PlaceReviewsController(
             currentUserId,
             place.Id,
             review.Id,
-            request.Visibility,
+            NormalizeReviewVisibility(request.Visibility),
             cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await notificationService.SendPushNotificationsAsync(notifications, CancellationToken.None);
@@ -190,14 +190,14 @@ public sealed class PlaceReviewsController(
         var currentCategoryId = await GetAssignedCategoryIdAsync(currentUserId, review.PlaceId, cancellationToken);
         var categoryChanged = currentCategoryId != request.CategoryId;
 
-        if (!categoryChanged && !review.HasChanges(request.Visibility, request.Rating, request.Title, request.Body))
+        if (!categoryChanged && !review.HasChanges(NormalizeReviewVisibility(request.Visibility), request.Rating, request.Title, request.Body))
         {
             return Ok(await LoadReviewDtoAsync(id, currentUserId, cancellationToken));
         }
 
         var previousVisibility = review.Visibility;
-        var reviewFieldsChanged = review.Update(request.Visibility, request.Rating, request.Title, request.Body);
-        if (previousVisibility != VisibilityLevel.Private && request.Visibility == VisibilityLevel.Private)
+        var reviewFieldsChanged = review.Update(NormalizeReviewVisibility(request.Visibility), request.Rating, request.Title, request.Body);
+        if (previousVisibility != VisibilityLevel.Private && NormalizeReviewVisibility(request.Visibility) == VisibilityLevel.Private)
         {
             await notificationService.DeleteReviewNotificationsAsync(placeReviewId: review.Id, cancellationToken: cancellationToken);
         }
@@ -285,4 +285,7 @@ public sealed class PlaceReviewsController(
 
         return NoContent();
     }
+    private static VisibilityLevel NormalizeReviewVisibility(VisibilityLevel visibility) =>
+        visibility == VisibilityLevel.Private ? VisibilityLevel.Private : VisibilityLevel.Friends;
+
 }

@@ -19,17 +19,11 @@ public static class VisibilityQueryExtensions
             || x.PlaceReviews.Any(review =>
                 review.AuthorUser.Status == UserAccountStatus.Active
                 && (review.AuthorUserId == viewerUserId
-                    || review.Visibility == VisibilityLevel.Public
-                    || (review.Visibility == VisibilityLevel.Friends && friendIds.Contains(review.AuthorUserId))
-                    || (review.Visibility == VisibilityLevel.FriendsOfFriends
-                        && (friendIds.Contains(review.AuthorUserId) || friendOfFriendIds.Contains(review.AuthorUserId)))))
+                    || (review.Visibility != VisibilityLevel.Private && friendIds.Contains(review.AuthorUserId))))
             || x.DishReviews.Any(review =>
                 review.AuthorUser.Status == UserAccountStatus.Active
                 && (review.AuthorUserId == viewerUserId
-                    || review.Visibility == VisibilityLevel.Public
-                    || (review.Visibility == VisibilityLevel.Friends && friendIds.Contains(review.AuthorUserId))
-                    || (review.Visibility == VisibilityLevel.FriendsOfFriends
-                        && (friendIds.Contains(review.AuthorUserId) || friendOfFriendIds.Contains(review.AuthorUserId))))));
+                    || (review.Visibility != VisibilityLevel.Private && friendIds.Contains(review.AuthorUserId)))));
     }
 
     public static IQueryable<PlaceReview> VisibleToViewer(
@@ -41,10 +35,7 @@ public static class VisibilityQueryExtensions
         return query.Where(x =>
             x.AuthorUser.Status == UserAccountStatus.Active
             && (x.AuthorUserId == viewerUserId
-                || x.Visibility == VisibilityLevel.Public
-                || (x.Visibility == VisibilityLevel.Friends && friendIds.Contains(x.AuthorUserId))
-                || (x.Visibility == VisibilityLevel.FriendsOfFriends
-                    && (friendIds.Contains(x.AuthorUserId) || friendOfFriendIds.Contains(x.AuthorUserId)))));
+                || (x.Visibility != VisibilityLevel.Private && friendIds.Contains(x.AuthorUserId))));
     }
 
     public static IQueryable<DishReview> VisibleToViewer(
@@ -56,10 +47,7 @@ public static class VisibilityQueryExtensions
         return query.Where(x =>
             x.AuthorUser.Status == UserAccountStatus.Active
             && (x.AuthorUserId == viewerUserId
-                || x.Visibility == VisibilityLevel.Public
-                || (x.Visibility == VisibilityLevel.Friends && friendIds.Contains(x.AuthorUserId))
-                || (x.Visibility == VisibilityLevel.FriendsOfFriends
-                    && (friendIds.Contains(x.AuthorUserId) || friendOfFriendIds.Contains(x.AuthorUserId)))));
+                || (x.Visibility != VisibilityLevel.Private && friendIds.Contains(x.AuthorUserId))));
     }
 
     public static IQueryable<PlaceReview> VisibleInSocialScope(

@@ -290,3 +290,24 @@ Enforcement rules:
 - move all repositories to backend-backed REST clients
 - treat backend DTOs as source of truth
 - use `/feed` and `/map/places` directly instead of reconstructing these screens from local data stores
+
+## Profile privacy
+
+All active profiles are searchable and visible to authenticated users. Profile cards
+return friend and review counts regardless of content access. Use `canViewFriends`
+and `canViewReviews` to decide whether a counter opens a list; otherwise render a
+plain count.
+
+Reviews are visible to their author and direct friends. Existing private reviews
+remain accessible only to their author. This rule also applies to review photos,
+map and feed results, and notifications. Legacy public or friends-of-friends review
+values never grant access to outsiders.
+
+Friends lists support `Private` (Only Me) and `Friends`. Outsiders can see the count
+but cannot retrieve the list. Profile photo visibility continues to support
+`Public`, `FriendsOfFriends`, and `Friends`.
+
+`PATCH /me/privacy` may omit `reviewVisibility` and `profileVisibility`; their fixed
+values are `Friends` and `Public`. Legacy non-private values are accepted and
+normalized, including old public or friends-of-friends list settings. Apply the
+`EnforceFriendPrivacy` database migration when deploying this version.

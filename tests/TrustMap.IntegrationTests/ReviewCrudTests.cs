@@ -40,7 +40,7 @@ public sealed class ReviewCrudTests
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<PlaceReviewDto>(JsonDefaults.Options))!;
         Assert.Equal(5, updated.Rating);
-        Assert.Equal(VisibilityLevel.Public, updated.Visibility);
+        Assert.Equal(VisibilityLevel.Friends, updated.Visibility);
 
         var deleteResponse = await client.HttpClient.DeleteAsync($"/place-reviews/{reviewId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -206,7 +206,7 @@ public sealed class ReviewCrudTests
         updateResponse.EnsureSuccessStatusCode();
         var updated = (await updateResponse.Content.ReadFromJsonAsync<DishReviewDto>(JsonDefaults.Options))!;
         Assert.Equal("Pierogi Ruskie", updated.DishName);
-        Assert.Equal(VisibilityLevel.Public, updated.Visibility);
+        Assert.Equal(VisibilityLevel.Friends, updated.Visibility);
 
         var deleteResponse = await client.HttpClient.DeleteAsync($"/dish-reviews/{dishReviewId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);

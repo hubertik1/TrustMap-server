@@ -161,7 +161,7 @@ public sealed class MeController(
             request.ProfileVisibility,
             request.ProfilePictureVisibility);
 
-        if (previousReviewVisibility != request.ReviewVisibility)
+        if (previousReviewVisibility != VisibilityLevel.Friends)
         {
             var placeReviews = await dbContext.PlaceReviews
                 .Where(x => x.AuthorUserId == currentUserId && x.Visibility != VisibilityLevel.Private)
@@ -169,7 +169,7 @@ public sealed class MeController(
 
             foreach (var review in placeReviews)
             {
-                review.Update(request.ReviewVisibility, review.Rating, review.Title, review.Body);
+                review.Update(VisibilityLevel.Friends, review.Rating, review.Title, review.Body);
             }
 
             var dishReviews = await dbContext.DishReviews
@@ -179,7 +179,7 @@ public sealed class MeController(
             foreach (var review in dishReviews)
             {
                 review.Update(
-                    request.ReviewVisibility,
+                    VisibilityLevel.Friends,
                     review.DishName,
                     review.Rating,
                     review.Body,

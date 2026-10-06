@@ -63,6 +63,8 @@ public sealed class MapPlaceCurrentUserReviewTests
         var alice = await CreateAuthenticatedClientAsync(factory, "mine-dish-only-alice", "Alice");
         var bob = await CreateAuthenticatedClientAsync(factory, "mine-dish-only-bob", "Bob");
 
+        var friendRequest = await bob.Client.SendFriendRequestAsync(alice.Session.User.Id);
+        (await alice.Client.HttpClient.PostAsync($"/friend-requests/{friendRequest.Id}/accept", null)).EnsureSuccessStatusCode();
         var placeId = await bob.Client.CreatePlaceAsync("mine-dish-only", 50.2003, 19.2003);
         var bobAnchorReviewId = await bob.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Public, 4, "Bob restaurant anchor");
         await alice.Client.CreateDishReviewAsync(placeId, placeReviewId: null, VisibilityLevel.Private, "Hot dog", 5);

@@ -1,3 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
+using TrustMap.Infrastructure.Persistence;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -33,17 +38,17 @@ public sealed class PrivacyFlowTests
             profileVisibility: VisibilityLevel.FriendsOfFriends,
             profilePictureVisibility: VisibilityLevel.Friends);
 
-        Assert.Equal(VisibilityLevel.FriendsOfFriends, updated.ReviewVisibility);
+        Assert.Equal(VisibilityLevel.Friends, updated.ReviewVisibility);
         Assert.Equal(VisibilityLevel.Friends, updated.FriendListVisibility);
-        Assert.Equal(VisibilityLevel.FriendsOfFriends, updated.ProfileVisibility);
+        Assert.Equal(VisibilityLevel.Public, updated.ProfileVisibility);
         Assert.Equal(VisibilityLevel.Friends, updated.ProfilePictureVisibility);
 
         var placeReviews = await FetchPlaceReviewsAsync(alice.Client, alice.Session.User.Id);
         var dishReviews = await FetchDishReviewsAsync(alice.Client, alice.Session.User.Id);
 
-        Assert.Equal(VisibilityLevel.FriendsOfFriends, Assert.Single(placeReviews, x => x.Id == publicPlaceReviewId).Visibility);
+        Assert.Equal(VisibilityLevel.Friends, Assert.Single(placeReviews, x => x.Id == publicPlaceReviewId).Visibility);
         Assert.Equal(VisibilityLevel.Private, Assert.Single(placeReviews, x => x.Id == privatePlaceReviewId).Visibility);
-        Assert.Equal(VisibilityLevel.FriendsOfFriends, Assert.Single(dishReviews, x => x.Id == friendsDishReviewId).Visibility);
+        Assert.Equal(VisibilityLevel.Friends, Assert.Single(dishReviews, x => x.Id == friendsDishReviewId).Visibility);
         Assert.Equal(VisibilityLevel.Private, Assert.Single(dishReviews, x => x.Id == privateDishReviewId).Visibility);
     }
 
@@ -88,9 +93,9 @@ public sealed class PrivacyFlowTests
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
         var updated = await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options);
         Assert.NotNull(updated);
-        Assert.Equal(VisibilityLevel.FriendsOfFriends, updated!.ReviewVisibility);
+        Assert.Equal(VisibilityLevel.Friends, updated!.ReviewVisibility);
         Assert.Equal(VisibilityLevel.Private, updated.FriendListVisibility);
-        Assert.Equal(VisibilityLevel.Friends, updated.ProfileVisibility);
+        Assert.Equal(VisibilityLevel.Public, updated.ProfileVisibility);
         Assert.Equal(VisibilityLevel.FriendsOfFriends, updated.ProfilePictureVisibility);
     }
 
@@ -111,15 +116,15 @@ public sealed class PrivacyFlowTests
         var json = await response.Content.ReadAsStringAsync();
 
         Assert.True(response.IsSuccessStatusCode, json);
-        Assert.Contains("\"reviewVisibility\":\"FriendsOfFriends\"", json);
+        Assert.Contains("\"reviewVisibility\":\"Friends\"", json);
         Assert.Contains("\"friendListVisibility\":\"Private\"", json);
-        Assert.Contains("\"profileVisibility\":\"Friends\"", json);
+        Assert.Contains("\"profileVisibility\":\"Public\"", json);
         Assert.Contains("\"profilePictureVisibility\":\"FriendsOfFriends\"", json);
         Assert.DoesNotContain("\"reviewVisibility\":4", json);
     }
 
     [Fact]
-    public async Task FriendsOfFriendsReviewVisibility_AllowsMutualFriend_AndBlocksUnrelatedUser()
+    public async Task LegacyFriendsOfFriendsReviewVisibility_BlocksMutualFriendAndUnrelatedUser()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -138,12 +143,12 @@ public sealed class PrivacyFlowTests
         var charlieReviews = await FetchPlaceReviewsForPlaceAsync(charlie.Client, placeId);
         var danaReviews = await FetchPlaceReviewsForPlaceAsync(dana.Client, placeId);
 
-        Assert.Contains(charlieReviews, x => x.Body == "Mutual can see");
+        Assert.DoesNotContain(charlieReviews, x => x.Body == "Mutual can see");
         Assert.DoesNotContain(danaReviews, x => x.Body == "Mutual can see");
     }
 
     [Fact]
-    public async Task GetUser_WithFriendsReviewVisibility_BlocksUnrelatedUserWithoutLeakingCounts()
+    public async Task GetUser_WithFriendsReviewVisibility_BlocksContentAndShowsCounts()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -158,8 +163,8 @@ public sealed class PrivacyFlowTests
         var profile = await FetchProfileAsync(bob.Client, alice.Session.User.Id);
 
         Assert.False(profile.CanViewReviews);
-        Assert.Equal(0, profile.VisiblePlaceReviewCount);
-        Assert.Equal(0, profile.VisibleDishReviewCount);
+        Assert.Equal(1, profile.VisiblePlaceReviewCount);
+        Assert.Equal(1, profile.VisibleDishReviewCount);
         Assert.Equal(
             HttpStatusCode.Forbidden,
             (await bob.Client.HttpClient.GetAsync($"/place-reviews?authorUserId={alice.Session.User.Id}")).StatusCode);
@@ -190,7 +195,7 @@ public sealed class PrivacyFlowTests
     }
 
     [Fact]
-    public async Task GetUser_WithFriendsOfFriendsReviewVisibility_AllowsMutualFriendAndBlocksUnrelatedUser()
+    public async Task GetUser_WithLegacyFriendsOfFriendsVisibility_BlocksMutualFriendAndShowsCounts()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -211,16 +216,16 @@ public sealed class PrivacyFlowTests
         var charlieProfile = await FetchProfileAsync(charlie.Client, alice.Session.User.Id);
         var danaProfile = await FetchProfileAsync(dana.Client, alice.Session.User.Id);
 
-        Assert.True(charlieProfile.CanViewReviews);
+        Assert.False(charlieProfile.CanViewReviews);
         Assert.Equal(1, charlieProfile.VisiblePlaceReviewCount);
         Assert.Equal(1, charlieProfile.VisibleDishReviewCount);
         Assert.False(danaProfile.CanViewReviews);
-        Assert.Equal(0, danaProfile.VisiblePlaceReviewCount);
-        Assert.Equal(0, danaProfile.VisibleDishReviewCount);
+        Assert.Equal(1, danaProfile.VisiblePlaceReviewCount);
+        Assert.Equal(1, danaProfile.VisibleDishReviewCount);
     }
 
     [Fact]
-    public async Task GetUser_WhenProfileHidden_ReturnsLimitedDto()
+    public async Task GetUser_WithLegacyProfilePrivacy_RemainsVisible()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -239,12 +244,12 @@ public sealed class PrivacyFlowTests
         var profile = await response.Content.ReadFromJsonAsync<UserProfileDto>(JsonDefaults.Options);
 
         Assert.NotNull(profile);
-        Assert.False(profile!.CanViewProfile);
+        Assert.True(profile!.CanViewProfile);
         Assert.False(profile.CanViewFriends);
         Assert.False(profile.CanViewReviews);
-        Assert.Null(profile.Bio);
+        Assert.Equal("Hidden bio", profile.Bio);
         Assert.Equal(0, profile.FriendCount);
-        Assert.Equal(0, profile.VisiblePlaceReviewCount);
+        Assert.Equal(1, profile.VisiblePlaceReviewCount);
         Assert.Equal(0, profile.VisibleDishReviewCount);
         Assert.Equal(
             HttpStatusCode.Forbidden,
@@ -284,7 +289,7 @@ public sealed class PrivacyFlowTests
     }
 
     [Fact]
-    public async Task GetUserFriends_RespectsFriendsAndFriendsOfFriendsVisibility()
+    public async Task GetUserFriends_RestrictsLegacyVisibilityToDirectFriends()
     {
         await using var factory = new TrustMapWebApplicationFactory();
         await factory.InitializeAsync();
@@ -302,8 +307,52 @@ public sealed class PrivacyFlowTests
         Assert.Equal(HttpStatusCode.OK, (await bob.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
 
         await alice.Client.UpdateMePrivacyAsync(friendListVisibility: VisibilityLevel.FriendsOfFriends);
-        Assert.Equal(HttpStatusCode.OK, (await charlie.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await charlie.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await dana.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
+        var strangerProfile = await FetchProfileAsync(dana.Client, alice.Session.User.Id);
+        Assert.Equal(1, strangerProfile.FriendCount);
+        Assert.False(strangerProfile.CanViewFriends);
+        await alice.Client.UpdateMePrivacyAsync(friendListVisibility: VisibilityLevel.Private);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.Client.HttpClient.GetAsync($"/users/{alice.Session.User.Id}/friends")).StatusCode);
+        Assert.Equal(1, (await FetchProfileAsync(bob.Client, alice.Session.User.Id)).FriendCount);
+
+    }
+
+    [Fact]
+    public async Task LegacyPrivacyAndMigration_KeepCountsPublicAndContentForDirectFriends()
+    {
+        await using var factory = new TrustMapWebApplicationFactory();
+        await factory.InitializeAsync();
+        var alice = await CreateAuthenticatedClientAsync(factory, "legacy-alice", "Alice");
+        var bob = await CreateAuthenticatedClientAsync(factory, "legacy-bob", "Bob");
+        var stranger = await CreateAuthenticatedClientAsync(factory, "legacy-stranger", "Stranger");
+        await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
+        var placeId = await alice.Client.CreatePlaceAsync("legacy-review");
+        var reviewId = await alice.Client.CreatePlaceReviewAsync(placeId, VisibilityLevel.Friends, 5, "Friends content");
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
+        var previousMigration = db.Database.GetMigrations().Reverse().Skip(1).First();
+        await db.GetService<IMigrator>().MigrateAsync(previousMigration);
+        await db.Database.ExecuteSqlRawAsync("UPDATE users SET \"ReviewVisibility\" = 3, \"ProfileVisibility\" = 2, \"FriendListVisibility\" = 3");
+        await db.Database.ExecuteSqlRawAsync("UPDATE place_reviews SET \"Visibility\" = 3");
+
+        var profile = await FetchProfileAsync(stranger.Client, alice.Session.User.Id);
+        Assert.True(profile.CanViewProfile);
+        Assert.False(profile.CanViewFriends);
+        Assert.False(profile.CanViewReviews);
+        Assert.Equal(1, profile.FriendCount);
+        Assert.Equal(1, profile.VisiblePlaceReviewCount);
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.Client.HttpClient.GetAsync($"/place-reviews/{reviewId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await bob.Client.HttpClient.GetAsync($"/place-reviews/{reviewId}")).StatusCode);
+
+        await db.Database.MigrateAsync();
+        var owner = await db.Users.AsNoTracking().SingleAsync(x => x.Id == alice.Session.User.Id);
+        Assert.Equal(VisibilityLevel.Friends, owner.ReviewVisibility);
+        Assert.Equal(VisibilityLevel.Public, owner.ProfileVisibility);
+        Assert.Equal(VisibilityLevel.Friends, owner.FriendListVisibility);
+        Assert.Equal(VisibilityLevel.Friends, (await db.PlaceReviews.AsNoTracking().SingleAsync(x => x.Id == reviewId)).Visibility);
     }
 
     private static async Task<(TestApiClient Client, AuthSessionDto Session)> CreateAuthenticatedClientAsync(

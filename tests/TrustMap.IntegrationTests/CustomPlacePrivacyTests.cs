@@ -140,8 +140,8 @@ public sealed class CustomPlacePrivacyTests
         await alice.Client.CreatePlaceReviewAsync(publicPlace.Id, VisibilityLevel.Public, 5, "Public review opens the pin");
         await alice.Client.CreatePlaceReviewAsync(privatePlace.Id, VisibilityLevel.Private, 5, "Private review keeps the pin hidden");
 
-        Assert.Contains(await SearchPlacesAsync(bob.Client, "public-review-pin"), x => x.Id == publicPlace.Id);
-        Assert.Equal(HttpStatusCode.OK, (await bob.Client.HttpClient.GetAsync($"/places/{publicPlace.Id}")).StatusCode);
+        Assert.DoesNotContain(await SearchPlacesAsync(bob.Client, "public-review-pin"), x => x.Id == publicPlace.Id);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.Client.HttpClient.GetAsync($"/places/{publicPlace.Id}")).StatusCode);
 
         Assert.DoesNotContain(await SearchPlacesAsync(bob.Client, "private-review-pin"), x => x.Id == privatePlace.Id);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.Client.HttpClient.GetAsync($"/places/{privatePlace.Id}")).StatusCode);
@@ -173,6 +173,7 @@ public sealed class CustomPlacePrivacyTests
         Assert.Equal(HttpStatusCode.NotFound, dishReviewResponse.StatusCode);
 
         await alice.Client.CreatePlaceReviewAsync(place.Id, VisibilityLevel.Public, 5, "Public anchor");
+        await MakeFriendsAsync(alice.Client, bob.Client, bob.Session.User.Id);
         var allowedResponse = await CreatePlaceReviewRawAsync(
             bob.Client,
             place.Id,

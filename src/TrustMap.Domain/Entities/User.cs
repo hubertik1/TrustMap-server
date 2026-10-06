@@ -101,9 +101,9 @@ public sealed class User
     {
         EnsureValidPrivacySettings(reviewVisibility, friendListVisibility, profileVisibility, profilePictureVisibility);
 
-        ReviewVisibility = reviewVisibility;
-        FriendListVisibility = friendListVisibility;
-        ProfileVisibility = profileVisibility;
+        ReviewVisibility = VisibilityLevel.Friends;
+        FriendListVisibility = friendListVisibility == VisibilityLevel.Private ? VisibilityLevel.Private : VisibilityLevel.Friends;
+        ProfileVisibility = VisibilityLevel.Public;
         ProfilePictureVisibility = profilePictureVisibility;
         UpdatedAt = DateTime.UtcNow;
     }

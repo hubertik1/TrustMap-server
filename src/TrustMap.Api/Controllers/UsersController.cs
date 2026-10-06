@@ -55,7 +55,7 @@ public sealed class UsersController(
 
         var targetAccess = await privacyAccessService.GetAccessMapAsync(currentUserId, [id], cancellationToken);
         var access = targetAccess[id];
-        if (!access.CanAccess(targetUser.ProfileVisibility) || !access.CanAccess(targetUser.FriendListVisibility))
+        if (!access.IsSelf && (!access.IsDirectFriend || targetUser.FriendListVisibility == Domain.Enums.VisibilityLevel.Private))
         {
             throw ApiException.Forbidden("This user keeps their friend list private.", "friend_list_private");
         }
