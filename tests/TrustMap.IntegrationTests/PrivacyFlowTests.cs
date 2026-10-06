@@ -333,10 +333,15 @@ public sealed class PrivacyFlowTests
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
-        var previousMigration = db.Database.GetMigrations().Reverse().Skip(1).First();
+        var previousMigration = db.Database.GetMigrations()
+            .TakeWhile(x => !x.EndsWith("_EnforceFriendPrivacy", StringComparison.Ordinal)).Last();
         await db.GetService<IMigrator>().MigrateAsync(previousMigration);
         await db.Database.ExecuteSqlRawAsync("UPDATE users SET \"ReviewVisibility\" = 3, \"ProfileVisibility\" = 2, \"FriendListVisibility\" = 3");
         await db.Database.ExecuteSqlRawAsync("UPDATE place_reviews SET \"Visibility\" = 3");
+
+        // The current API requires the current schema. Verify the legacy data
+        // upgrade before making HTTP requests, including subsequent migrations.
+        await db.Database.MigrateAsync();
 
         var profile = await FetchProfileAsync(stranger.Client, alice.Session.User.Id);
         Assert.True(profile.CanViewProfile);
@@ -347,7 +352,6 @@ public sealed class PrivacyFlowTests
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.Client.HttpClient.GetAsync($"/place-reviews/{reviewId}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await bob.Client.HttpClient.GetAsync($"/place-reviews/{reviewId}")).StatusCode);
 
-        await db.Database.MigrateAsync();
         var owner = await db.Users.AsNoTracking().SingleAsync(x => x.Id == alice.Session.User.Id);
         Assert.Equal(VisibilityLevel.Friends, owner.ReviewVisibility);
         Assert.Equal(VisibilityLevel.Public, owner.ProfileVisibility);

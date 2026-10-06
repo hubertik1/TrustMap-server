@@ -75,6 +75,10 @@ public sealed class FriendRequestsController(
         IReadOnlyList<UserNotification> notifications;
         await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
         {
+            if (await dbContext.UserBlocks.AnyAsync(x =>
+                (x.BlockerUserId == currentUserId && x.BlockedUserId == request.ReceiverUserId)
+                || (x.BlockerUserId == request.ReceiverUserId && x.BlockedUserId == currentUserId), cancellationToken))
+                throw ApiException.NotFound("Target user not found.", "user_not_found");
             await EnsureFriendRequestQuotaAllowsCreateAsync(currentUserId, request.ReceiverUserId, cancellationToken);
 
             var quotaResult = await quotaService.CheckAndConsumeAsync(
@@ -156,6 +160,7 @@ public sealed class FriendRequestsController(
     public async Task<ActionResult<FriendDto>> Accept(Guid id, CancellationToken cancellationToken)
     {
         var currentUserId = User.GetRequiredUserId();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var request = await dbContext.FriendRequests
             .Include(x => x.SenderUser)
             .Include(x => x.ReceiverUser)
@@ -188,6 +193,7 @@ public sealed class FriendRequestsController(
         dbContext.Friendships.Add(friendship);
         await notificationService.MarkFriendRequestNotificationReadAsync(request.Id, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var otherUser = request.SenderUserId == currentUserId ? request.ReceiverUser : request.SenderUser;
         var accessMap = await privacyAccessService.GetAccessMapAsync(currentUserId, [otherUser.Id], cancellationToken);

@@ -27,6 +27,10 @@ public sealed class PlaceReview
 
     public Guid Id { get; private set; }
 
+    public bool IsRemovedByModeration { get; private set; }
+
+    public void RemoveByModeration() => IsRemovedByModeration = true;
+
     public Guid PlaceId { get; private set; }
 
     public Guid AuthorUserId { get; private set; }

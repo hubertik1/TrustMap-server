@@ -10,6 +10,8 @@ The API is built with ASP.NET Core, Entity Framework Core and SQLite. It handles
 - Short-lived JWT access tokens with rotating refresh tokens.
 - Active-user authorization and soft account deletion.
 - Friend requests, friendships and social visibility rules.
+- Bilateral user blocking with a settings list for unblocking.
+- One-tap review reports with copied evidence and moderation action links; private `.eml` files by default, optional SMTP delivery.
 - Place reviews and dish reviews with `private`, `friends` and `public` visibility.
 - Custom places, canonical place records and per-user category membership.
 - Authenticated photo upload and protected media delivery.
@@ -84,6 +86,7 @@ Main endpoint groups:
 - `/me` for current-user profile, privacy settings, avatar upload and account deletion.
 - `/users` for user lookup and profile views.
 - `/friends` and `/friend-requests` for the social graph.
+- `/me/blocks` for blocking and unblocking, `/reports` for review reports.
 - `/places` for place search and custom place management.
 - `/place-reviews` and `/dish-reviews` for review workflows.
 - `/photos` and `/media` for photo upload and protected media access.
@@ -229,6 +232,12 @@ PushNotifications__Apns__PrivateKeyBase64=...
 ```
 
 See [docs/push-notifications.md](docs/push-notifications.md) for details.
+
+## Blocking And Reporting
+
+Reports are saved durably and prepared as private `.eml` files addressed to `hubert.mar@icloud.com`. The default mode requires no SMTP service and **does not deliver email to the recipient's inbox**. Files contain the reported review, photo previews and links to confirm ignore, removal or account suspension. Account suspension requires an administrator password configured on the server.
+
+See [docs/blocking-and-reporting.md](docs/blocking-and-reporting.md) for storage paths, hosting settings, administrator password setup and optional SMTP delivery. Keep the moderation mail directory and Data Protection keys on persistent, private storage.
 
 ## Database Migrations
 

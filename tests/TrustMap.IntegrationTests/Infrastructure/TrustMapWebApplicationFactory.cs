@@ -67,6 +67,8 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
                 ["PhotoStorage:MaxUploadBytes"] = PhotoStorageOptions.DefaultMaxUploadBytes.ToString(),
                 ["PhotoStorage:OutputFormat"] = "jpeg",
                 ["PhotoStorage:JpegQuality"] = "85",
+                ["Moderation:EmailDirectory"] = Path.Combine(_photoRootPath, "moderation-mails"),
+                ["Moderation:DataProtectionKeyDirectory"] = Path.Combine(_photoRootPath, "moderation-keys"),
                 ["RateLimits:Enabled"] = "false"
             };
 
@@ -121,6 +123,7 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
 
     public new async Task DisposeAsync()
     {
+        await base.DisposeAsync();
         await _connection.DisposeAsync();
 
         if (Directory.Exists(_photoRootPath))

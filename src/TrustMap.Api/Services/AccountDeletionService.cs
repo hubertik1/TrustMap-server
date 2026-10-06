@@ -41,19 +41,22 @@ public sealed class AccountDeletionService(
 
             CollectAvatarStorageKeys(user.AvatarUrl, storageKeysToDelete);
 
-            var placeReviewIds = await dbContext.PlaceReviews
+            await dbContext.UserBlocks.Where(x => x.BlockerUserId == userId || x.BlockedUserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            var placeReviewIds = await dbContext.PlaceReviews.IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(x => x.AuthorUserId == userId)
                 .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
 
-            var dishReviewIds = await dbContext.DishReviews
+            var dishReviewIds = await dbContext.DishReviews.IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(x => x.AuthorUserId == userId)
                 .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
 
-            var friendRequestIds = await dbContext.FriendRequests
+            var friendRequestIds = await dbContext.FriendRequests.IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(x => x.SenderUserId == userId || x.ReceiverUserId == userId)
                 .Select(x => x.Id)
@@ -82,7 +85,7 @@ public sealed class AccountDeletionService(
         ISet<string> storageKeys,
         CancellationToken cancellationToken)
     {
-        var photos = await dbContext.Photos
+        var photos = await dbContext.Photos.IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x =>
                 x.OwnerUserId == userId
@@ -103,27 +106,27 @@ public sealed class AccountDeletionService(
         IReadOnlyCollection<Guid> friendRequestIds,
         CancellationToken cancellationToken)
     {
-        await dbContext.Notifications
+        await dbContext.Notifications.IgnoreQueryFilters()
             .Where(x => x.RecipientUserId == userId || x.ActorUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
         if (placeReviewIds.Count > 0)
         {
-            await dbContext.Notifications
+            await dbContext.Notifications.IgnoreQueryFilters()
                 .Where(x => x.PlaceReviewId.HasValue && placeReviewIds.Contains(x.PlaceReviewId.Value))
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
         if (dishReviewIds.Count > 0)
         {
-            await dbContext.Notifications
+            await dbContext.Notifications.IgnoreQueryFilters()
                 .Where(x => x.DishReviewId.HasValue && dishReviewIds.Contains(x.DishReviewId.Value))
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
         if (friendRequestIds.Count > 0)
         {
-            await dbContext.Notifications
+            await dbContext.Notifications.IgnoreQueryFilters()
                 .Where(x => x.FriendRequestId.HasValue && friendRequestIds.Contains(x.FriendRequestId.Value))
                 .ExecuteDeleteAsync(cancellationToken);
         }
@@ -131,11 +134,11 @@ public sealed class AccountDeletionService(
 
     private async Task DeleteRelationshipDataAsync(Guid userId, CancellationToken cancellationToken)
     {
-        await dbContext.Friendships
+        await dbContext.Friendships.IgnoreQueryFilters()
             .Where(x => x.UserAId == userId || x.UserBId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await dbContext.FriendRequests
+        await dbContext.FriendRequests.IgnoreQueryFilters()
             .Where(x => x.SenderUserId == userId || x.ReceiverUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
     }
@@ -161,15 +164,15 @@ public sealed class AccountDeletionService(
         IReadOnlyCollection<Guid> dishReviewIds,
         CancellationToken cancellationToken)
     {
-        await dbContext.UserCategoryMemberships
+        await dbContext.UserCategoryMemberships.IgnoreQueryFilters()
             .Where(x => x.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await dbContext.PlaceCategoryAssignments
+        await dbContext.PlaceCategoryAssignments.IgnoreQueryFilters()
             .Where(x => x.AssignedByUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await dbContext.Categories
+        await dbContext.Categories.IgnoreQueryFilters()
             .Where(x => x.OwnerUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
@@ -179,7 +182,7 @@ public sealed class AccountDeletionService(
 
         if (placeReviewIds.Count > 0 || dishReviewIds.Count > 0)
         {
-            await dbContext.Photos
+            await dbContext.Photos.IgnoreQueryFilters()
                 .Where(x =>
                     x.OwnerUserId == userId
                     || (x.PlaceReviewId.HasValue && placeReviewIds.Contains(x.PlaceReviewId.Value))
@@ -188,23 +191,23 @@ public sealed class AccountDeletionService(
         }
         else
         {
-            await dbContext.Photos
+            await dbContext.Photos.IgnoreQueryFilters()
                 .Where(x => x.OwnerUserId == userId)
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
-        await dbContext.DishReviews
+        await dbContext.DishReviews.IgnoreQueryFilters()
             .Where(x => x.AuthorUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await dbContext.PlaceReviews
+        await dbContext.PlaceReviews.IgnoreQueryFilters()
             .Where(x => x.AuthorUserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
     }
 
     private async Task CleanupCustomPlacesAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var places = await dbContext.Places
+        var places = await dbContext.Places.IgnoreQueryFilters()
             .Where(x => x.CreatedByUserId == userId || x.CustomDisplayNameSetByUserId == userId)
             .ToListAsync(cancellationToken);
 
@@ -215,8 +218,8 @@ public sealed class AccountDeletionService(
                 && !place.IsPublicCatalogPlace)
             {
                 var hasRemainingReviews =
-                    await dbContext.PlaceReviews.AnyAsync(x => x.PlaceId == place.Id, cancellationToken)
-                    || await dbContext.DishReviews.AnyAsync(x => x.PlaceId == place.Id, cancellationToken);
+                    await dbContext.PlaceReviews.IgnoreQueryFilters().AnyAsync(x => x.PlaceId == place.Id, cancellationToken)
+                    || await dbContext.DishReviews.IgnoreQueryFilters().AnyAsync(x => x.PlaceId == place.Id, cancellationToken);
 
                 if (!hasRemainingReviews)
                 {

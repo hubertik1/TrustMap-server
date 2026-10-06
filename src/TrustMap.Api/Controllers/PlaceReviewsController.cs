@@ -126,7 +126,7 @@ public sealed class PlaceReviewsController(
             .SingleOrDefaultAsync(x => x.Id == request.PlaceId, cancellationToken)
             ?? throw ApiException.NotFound("Place not found.", "place_not_found");
 
-        var exists = await dbContext.PlaceReviews.AnyAsync(
+        var exists = await dbContext.PlaceReviews.IgnoreQueryFilters().AnyAsync(
             x => x.PlaceId == request.PlaceId && x.AuthorUserId == currentUserId,
             cancellationToken);
 

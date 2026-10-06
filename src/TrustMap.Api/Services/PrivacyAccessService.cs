@@ -10,11 +10,13 @@ public sealed record ViewerAccess(
     Guid UserId,
     bool IsSelf,
     bool IsDirectFriend,
-    bool IsFriendOfFriend)
+    bool IsFriendOfFriend,
+    bool IsBlocked = false)
 {
     public bool CanAccess(VisibilityLevel visibility)
     {
         EnumGuard.EnsureDefined(visibility, nameof(visibility));
+        if (IsBlocked) return false;
 
         return visibility switch
         {
@@ -107,6 +109,13 @@ public sealed class PrivacyAccessService(TrustMapDbContext dbContext)
         {
             return result;
         }
+
+        var blockedIds = await dbContext.UserBlocks.AsNoTracking()
+            .Where(x => (x.BlockerUserId == viewerUserId && nonSelfTargetIds.Contains(x.BlockedUserId))
+                || (x.BlockedUserId == viewerUserId && nonSelfTargetIds.Contains(x.BlockerUserId)))
+            .Select(x => x.BlockerUserId == viewerUserId ? x.BlockedUserId : x.BlockerUserId)
+            .ToListAsync(cancellationToken);
+        foreach (var id in blockedIds) result[id] = result[id] with { IsBlocked = true };
 
         var friendIds = await GetFriendIdsAsync(viewerUserId, cancellationToken);
         foreach (var userId in nonSelfTargetIds.Where(friendIds.Contains))

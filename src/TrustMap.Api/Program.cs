@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ using TrustMap.Api.Quotas;
 using TrustMap.Api.RateLimiting;
 using TrustMap.Api.Services;
 using TrustMap.Api.Services.PushNotifications;
+using TrustMap.Api.Services.Moderation;
 using TrustMap.Infrastructure;
 using TrustMap.Infrastructure.Authentication;
 using TrustMap.Infrastructure.Persistence;
@@ -109,6 +111,31 @@ builder.Services.AddScoped<PlaceCatalogService>();
 builder.Services.AddScoped<ProfileQueryService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+builder.Services.AddOptions<ModerationOptions>()
+    .Bind(builder.Configuration.GetSection(ModerationOptions.SectionName)).ValidateOnStart();
+builder.Services.PostConfigure<ModerationOptions>(options =>
+{
+    options.EmailDirectory = Path.GetFullPath(options.EmailDirectory, builder.Environment.ContentRootPath);
+});
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<ModerationOptions>, ModerationOptionsValidator>();
+var moderationKeyPath = builder.Configuration[$"{ModerationOptions.SectionName}:DataProtectionKeyDirectory"]
+    ?? "App_Data/moderation-keys";
+var moderationKeyDirectory = Directory.CreateDirectory(Path.GetFullPath(moderationKeyPath, builder.Environment.ContentRootPath));
+if (!OperatingSystem.IsWindows())
+    File.SetUnixFileMode(moderationKeyDirectory.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+builder.Services.AddDataProtection().SetApplicationName("TrustMap")
+    .PersistKeysToFileSystem(moderationKeyDirectory);
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.SecurePolicy = builder.Environment.IsEnvironment("Testing") || builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+builder.Services.AddSingleton<ModerationLinks>();
+builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<IReportEmailSender, ReportEmailSender>();
+builder.Services.AddScoped<ReportDelivery>();
+builder.Services.AddHostedService<ReportDeliveryWorker>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveUserAuthorizationHandler>();
 builder.Services.AddScoped<IQuotaService, EfQuotaService>();
 builder.Services.AddOptions<PushNotificationOptions>()
@@ -177,6 +204,7 @@ var app = builder.Build();
 // Force critical options validation before startup side effects such as database migrations.
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
 _ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PushNotificationOptions>>().Value;
+_ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ModerationOptions>>().Value;
 
 app.UseExceptionHandler();
 
@@ -192,6 +220,14 @@ else
 
 app.UseRouting();
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? context.User.FindFirst("sub")?.Value;
+    if (Guid.TryParse(userId, out var viewerId))
+        context.RequestServices.GetRequiredService<TrustMapDbContext>().ViewerUserId = viewerId;
+    await next();
+});
 app.UseRateLimiter();
 app.UseAuthorization();
 
