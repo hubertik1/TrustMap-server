@@ -319,13 +319,29 @@ public sealed class NotificationService(
         int? badgeCount)
     {
         var actorMention = BuildActorMention(notification.ActorUser);
+        var fallbackActor = actorMention ?? "Someone";
         var body = notification.Type switch
         {
-            NotificationType.PlaceReviewAdded => $"{actorMention} added a place review",
-            NotificationType.DishReviewAdded => $"{actorMention} added a dish review",
-            NotificationType.FriendRequestSent => $"{actorMention} sent you a friend request",
+            NotificationType.PlaceReviewAdded => $"{fallbackActor} added a place review",
+            NotificationType.DishReviewAdded => $"{fallbackActor} added a dish review",
+            NotificationType.FriendRequestSent => $"{fallbackActor} sent you a friend request",
             _ => "You have a new notification"
         };
+        // iOS resolves these keys from the app's Localizable.strings, using its
+        // current language even when the app is closed. User names stay literal.
+        var localizationKey = notification.Type switch
+        {
+            NotificationType.PlaceReviewAdded => actorMention is null
+                ? "push.place_review_added_unknown_actor" : "ui.value_added_a_place_review",
+            NotificationType.DishReviewAdded => actorMention is null
+                ? "push.dish_review_added_unknown_actor" : "ui.value_added_a_dish_review",
+            NotificationType.FriendRequestSent => actorMention is null
+                ? "push.friend_request_sent_unknown_actor" : "ui.value_sent_you_a_friend_request",
+            _ => "push.new_notification"
+        };
+        string[] localizationArguments = actorMention is not null
+            && notification.Type is NotificationType.PlaceReviewAdded or NotificationType.DishReviewAdded or NotificationType.FriendRequestSent
+                ? [actorMention] : [];
 
         return new PushNotificationRequest(
             deviceToken.Token,
@@ -333,7 +349,9 @@ public sealed class NotificationService(
             "TrustMap",
             body,
             BuildPayloadData(notification),
-            badgeCount);
+            badgeCount,
+            localizationKey,
+            localizationArguments);
     }
 
     private static IReadOnlyDictionary<string, string> BuildPayloadData(UserNotification notification)
@@ -373,7 +391,7 @@ public sealed class NotificationService(
         return Convert.ToHexString(hash.AsSpan(0, 6)).ToLowerInvariant();
     }
 
-    private static string BuildActorMention(User actor)
+    private static string? BuildActorMention(User actor)
     {
         var handle = actor.Handle.Trim();
         var hashIndex = handle.IndexOf('#', StringComparison.Ordinal);
@@ -385,6 +403,6 @@ public sealed class NotificationService(
             baseHandle = actor.DisplayName.Trim();
         }
 
-        return string.IsNullOrWhiteSpace(baseHandle) ? "Someone" : $"@{baseHandle}";
+        return string.IsNullOrWhiteSpace(baseHandle) ? null : $"@{baseHandle}";
     }
 }

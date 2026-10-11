@@ -95,13 +95,26 @@ public sealed class ApnsPushNotificationSender(
 
     private static Dictionary<string, object?> BuildPayload(PushNotificationRequest notification)
     {
+        var alert = new Dictionary<string, object?>
+        {
+            ["title"] = notification.Title
+        };
+        if (!string.IsNullOrWhiteSpace(notification.BodyLocalizationKey))
+        {
+            alert["loc-key"] = notification.BodyLocalizationKey;
+            if (notification.BodyLocalizationArguments is { Count: > 0 })
+            {
+                alert["loc-args"] = notification.BodyLocalizationArguments;
+            }
+        }
+        else
+        {
+            alert["body"] = notification.Body;
+        }
+
         var aps = new Dictionary<string, object?>
         {
-            ["alert"] = new Dictionary<string, string>
-            {
-                ["title"] = notification.Title,
-                ["body"] = notification.Body
-            },
+            ["alert"] = alert,
             ["sound"] = "default"
         };
 

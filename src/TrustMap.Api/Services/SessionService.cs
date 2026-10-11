@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using TrustMap.Api.Common;
 using TrustMap.Domain.Entities;
 using TrustMap.Domain.Enums;
@@ -27,7 +28,20 @@ public sealed class SessionService(
         string? ipAddress,
         CancellationToken cancellationToken)
     {
-        var applePrincipal = await appleIdentityTokenVerifier.VerifyAsync(identityToken, rawNonce, cancellationToken);
+        AppleIdentityPrincipal applePrincipal;
+        try
+        {
+            applePrincipal = await appleIdentityTokenVerifier.VerifyAsync(identityToken, rawNonce, cancellationToken);
+        }
+        catch (AppleIdentityProviderUnavailableException)
+        {
+            throw new ApiException(System.Net.HttpStatusCode.ServiceUnavailable, "Service Unavailable",
+                "Apple sign-in is temporarily unavailable. Please try again.", "apple_identity_service_unavailable");
+        }
+        catch (SecurityTokenException)
+        {
+            throw ApiException.Unauthorized("The Apple identity token is invalid or expired. Sign in again.", "invalid_apple_identity_token");
+        }
         var persistedEmail = applePrincipal.Email ?? email;
 
         var appleIdentity = await dbContext.AppleIdentities

@@ -215,6 +215,8 @@ PhotoStorage__RequestPath=/uploads
 
 The backend validates Apple identity tokens against Apple's OpenID configuration and signing keys. `AppleAuth:AllowedAudiences` must include the bundle ID or service ID used by the client.
 
+Apple signing keys are warmed in the background on process startup and shared with sign-in validation. Metadata waits are bounded, and temporary Apple outages return `503` rather than being treated as invalid identities. This improves first sign-in after an idle restart without requiring a paid hosting plan. See [startup and authentication on Azure Free F1](docs/startup-and-authentication.md) for limits and client-side follow-ups.
+
 If the Apple identity token includes a `nonce` claim, the iOS client must send the original raw nonce in the sign-in request. The backend maps Apple `sub` values to local `AppleIdentity` records.
 
 ## Push Notifications

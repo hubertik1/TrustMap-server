@@ -11,26 +11,19 @@ namespace TrustMap.Infrastructure.Authentication;
 
 public sealed class AppleIdentityTokenVerifier : IAppleIdentityTokenVerifier
 {
-    private readonly ConfigurationManager<OpenIdConnectConfiguration> _configurationManager;
+    private readonly IConfigurationManager<OpenIdConnectConfiguration> _configurationManager;
     private readonly AppleAuthOptions _options;
     private readonly JwtSecurityTokenHandler _tokenHandler = new()
     {
         MapInboundClaims = false
     };
 
-    public AppleIdentityTokenVerifier(IOptions<AppleAuthOptions> options)
+    public AppleIdentityTokenVerifier(
+        IOptions<AppleAuthOptions> options,
+        IConfigurationManager<OpenIdConnectConfiguration> configurationManager)
     {
         _options = options.Value;
-
-        var documentRetriever = new HttpDocumentRetriever
-        {
-            RequireHttps = true
-        };
-
-        _configurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
-            $"{_options.Issuer}/.well-known/openid-configuration",
-            new OpenIdConnectConfigurationRetriever(),
-            documentRetriever);
+        _configurationManager = configurationManager;
     }
 
     public async Task<AppleIdentityPrincipal> VerifyAsync(
@@ -43,12 +36,27 @@ public sealed class AppleIdentityTokenVerifier : IAppleIdentityTokenVerifier
             throw new SecurityTokenValidationException("Identity token is required.");
         }
 
+        if (!_tokenHandler.CanReadToken(identityToken))
+        {
+            throw new SecurityTokenValidationException("Identity token format is invalid.");
+        }
+
         if (_options.AllowedAudiences.Count == 0)
         {
             throw new InvalidOperationException("AppleAuth:AllowedAudiences must contain at least one bundle or service identifier.");
         }
 
-        var openIdConfig = await _configurationManager.GetConfigurationAsync(cancellationToken);
+        OpenIdConnectConfiguration openIdConfig;
+        try
+        {
+            openIdConfig = await _configurationManager.GetConfigurationAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception)
+        {
+            // A provider/network failure does not mean the user's identity is invalid.
+            throw new AppleIdentityProviderUnavailableException();
+        }
 
         var validationParameters = new TokenValidationParameters
         {

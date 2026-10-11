@@ -46,6 +46,8 @@ public sealed class PushNotificationFlowTests
         Assert.Equal("development", request.Environment);
         Assert.Equal("TrustMap", request.Title);
         Assert.Equal("@push-place-alice added a place review", request.Body);
+        Assert.Equal("ui.value_added_a_place_review", request.BodyLocalizationKey);
+        Assert.Equal(["@push-place-alice"], request.BodyLocalizationArguments);
         Assert.Equal(NotificationType.PlaceReviewAdded.ToString(), request.Data["type"]);
         Assert.Equal(place.Id.ToString("D"), request.Data["placeId"]);
         Assert.Equal(reviewId.ToString("D"), request.Data["placeReviewId"]);
@@ -106,6 +108,8 @@ public sealed class PushNotificationFlowTests
         var request = Assert.Single(sender.Requests);
         Assert.Equal("00abff", request.DeviceToken);
         Assert.Equal("@push-dish-alice added a dish review", request.Body);
+        Assert.Equal("ui.value_added_a_dish_review", request.BodyLocalizationKey);
+        Assert.Equal(["@push-dish-alice"], request.BodyLocalizationArguments);
         Assert.Equal(NotificationType.DishReviewAdded.ToString(), request.Data["type"]);
         Assert.Equal(place.Id.ToString("D"), request.Data["placeId"]);
         Assert.Equal(dishReviewId.ToString("D"), request.Data["dishReviewId"]);
@@ -134,8 +138,39 @@ public sealed class PushNotificationFlowTests
         Assert.Equal("00abff", request.DeviceToken);
         Assert.Equal("production", request.Environment);
         Assert.Equal("@push-request-alice sent you a friend request", request.Body);
+        Assert.Equal("ui.value_sent_you_a_friend_request", request.BodyLocalizationKey);
+        Assert.Equal(["@push-request-alice"], request.BodyLocalizationArguments);
         Assert.Equal(NotificationType.FriendRequestSent.ToString(), request.Data["type"]);
         Assert.Equal(friendRequest.Id.ToString("D"), request.Data["friendRequestId"]);
+    }
+
+    [Fact]
+    public async Task FriendRequestWithMissingActorName_UsesLocalizedSentenceWithoutEnglishSomeone()
+    {
+        var sender = new RecordingPushNotificationSender();
+        await using var factory = CreateFactoryWithSender(sender);
+        await factory.InitializeAsync();
+        var aliceClient = new TestApiClient(factory.CreateClient());
+        var bobClient = new TestApiClient(factory.CreateClient());
+        var alice = await aliceClient.SignInAsync("push-unnamed-alice", "Alice");
+        var bob = await bobClient.SignInAsync("push-unnamed-bob", "Bob");
+        aliceClient.Authenticate(alice.AccessToken);
+        bobClient.Authenticate(bob.AccessToken);
+        await RegisterTokenAsync(bobClient, "00abff");
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TrustMapDbContext>();
+            await db.Users.Where(user => user.Id == alice.User.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(user => user.Handle, "")
+                .SetProperty(user => user.DisplayName, ""));
+        }
+
+        await aliceClient.SendFriendRequestAsync(bob.User.Id);
+
+        var request = Assert.Single(sender.Requests);
+        Assert.Equal("push.friend_request_sent_unknown_actor", request.BodyLocalizationKey);
+        Assert.NotNull(request.BodyLocalizationArguments);
+        Assert.Empty(request.BodyLocalizationArguments);
     }
 
     [Fact]

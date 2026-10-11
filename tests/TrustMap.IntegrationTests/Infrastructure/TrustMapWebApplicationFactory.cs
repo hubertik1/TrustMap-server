@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using TrustMap.Infrastructure.Authentication;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
@@ -87,6 +89,7 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
             services.RemoveAll<TrustMapDbContext>();
             services.RemoveAll<IDbContextOptionsConfiguration<TrustMapDbContext>>();
             services.RemoveAll<IAppleIdentityTokenVerifier>();
+            services.RemoveAll<IConfigurationManager<OpenIdConnectConfiguration>>();
 
             services.AddSingleton(_connection);
             services.AddDbContext<TrustMapDbContext>((serviceProvider, options) =>
@@ -97,6 +100,8 @@ internal sealed class TrustMapWebApplicationFactory : WebApplicationFactory<Prog
             });
 
             services.AddSingleton<IAppleIdentityTokenVerifier, FakeAppleIdentityTokenVerifier>();
+            services.AddSingleton<IConfigurationManager<OpenIdConnectConfiguration>>(
+                new StaticConfigurationManager<OpenIdConnectConfiguration>(new OpenIdConnectConfiguration()));
 
             services.PostConfigure<DatabaseOptions>(options =>
             {

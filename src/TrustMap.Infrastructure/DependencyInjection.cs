@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using TrustMap.Infrastructure.Authentication;
 using TrustMap.Infrastructure.Persistence;
 using TrustMap.Infrastructure.Storage;
@@ -38,6 +40,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<SessionTokenService>();
+        services.AddSingleton<IConfigurationManager<OpenIdConnectConfiguration>, AppleIdentityConfiguration>();
         services.AddSingleton<IAppleIdentityTokenVerifier, AppleIdentityTokenVerifier>();
         services.AddSingleton<IPhotoStorage, LocalPhotoStorage>();
 

@@ -2,6 +2,40 @@
 
 TrustMap sends APNs pushes from the backend after the in-app notification record is saved. Push delivery is best-effort: review and friend-request creation must not depend on APNs availability.
 
+## Language
+
+APNs alerts use `loc-key` and `loc-args`. iOS looks up the message in the installed
+app's `Localizable.strings` for its selected language, including an app-specific
+language selected in Settings. This works while TrustMap is closed and does not
+require sending language preferences to the backend or registering a new token
+after changing language. The title remains the brand name `TrustMap`.
+
+| Notification | Localization key | Arguments |
+| --- | --- | --- |
+| Place review | `ui.value_added_a_place_review` | Actor mention |
+| Dish review | `ui.value_added_a_dish_review` | Actor mention |
+| Friend request | `ui.value_sent_you_a_friend_request` | Actor mention |
+
+These three keys are shared with the in-app notification text. Actor names are
+passed literally as arguments and are never translated or used as format strings.
+When actor information is missing, `push.place_review_added_unknown_actor`,
+`push.dish_review_added_unknown_actor`, or `push.friend_request_sent_unknown_actor`
+provides a fully localized sentence without arguments. `push.new_notification`
+is the generic fallback. All seven keys are available in English, Polish, German,
+Spanish, French, Italian, Portuguese, and Ukrainian. Unsupported languages use
+the app's normal iOS language fallback, with English as the development language.
+
+Localized payloads omit the fixed English `body`. Internal `Body` text remains
+available for legacy/nonlocalized sender requests; the APNs serializer uses it
+only when no localization key is supplied. Badge, sound, notification IDs, and
+navigation payloads are unchanged.
+
+Release the updated app catalogs before enabling the updated backend so installed
+clients also have the anonymous-actor and generic fallback keys. Already delivered
+notifications are not rewritten when the user changes language. Tests exercise
+all three notification flows, APNs JSON serialization, and compiled translations
+for every supported language; real APNs delivery still needs a device check.
+
 ## Apple Developer Setup
 
 1. Enable Push Notifications for the TrustMap App ID / Bundle ID.

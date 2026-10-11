@@ -11,7 +11,9 @@ public sealed record PushNotificationRequest(
     string Title,
     string Body,
     IReadOnlyDictionary<string, string> Data,
-    int? BadgeCount = null);
+    int? BadgeCount = null,
+    string? BodyLocalizationKey = null,
+    IReadOnlyList<string>? BodyLocalizationArguments = null);
 
 public sealed record PushNotificationSendResult(
     bool Success,

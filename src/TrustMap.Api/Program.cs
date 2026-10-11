@@ -105,6 +105,7 @@ builder.Services.AddScoped<CategoryAssignmentService>();
 builder.Services.AddScoped<CategoryMembershipService>();
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();
+builder.Services.AddHostedService<AppleSignInWarmupService>();
 builder.Services.AddScoped<SocialGraphService>();
 builder.Services.AddScoped<PrivacyAccessService>();
 builder.Services.AddScoped<PlaceCatalogService>();

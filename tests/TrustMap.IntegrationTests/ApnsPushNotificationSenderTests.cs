@@ -69,6 +69,53 @@ public sealed class ApnsPushNotificationSenderTests
     }
 
     [Theory]
+    [InlineData("ui.value_added_a_place_review")]
+    [InlineData("ui.value_added_a_dish_review")]
+    [InlineData("ui.value_sent_you_a_friend_request")]
+    public async Task SendAsync_LocalizedAlertUsesKeyAndLiteralArgumentsWithoutEnglishBody(string key)
+    {
+        var handler = new RecordingHttpMessageHandler(_ => JsonResponse(HttpStatusCode.OK));
+        var sender = CreateSender(handler);
+        var notification = CreateRequest(badgeCount: 3) with
+        {
+            BodyLocalizationKey = key,
+            BodyLocalizationArguments = ["@100%_Żółć_東京"]
+        };
+
+        var result = await sender.SendAsync(notification, CancellationToken.None);
+
+        Assert.True(result.Success);
+        using var payload = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
+        var aps = payload.RootElement.GetProperty("aps");
+        var alert = aps.GetProperty("alert");
+        Assert.Equal("TrustMap", alert.GetProperty("title").GetString());
+        Assert.Equal(key, alert.GetProperty("loc-key").GetString());
+        Assert.Equal("@100%_Żółć_東京", Assert.Single(alert.GetProperty("loc-args").EnumerateArray()).GetString());
+        Assert.False(alert.TryGetProperty("body", out _));
+        Assert.Equal(3, aps.GetProperty("badge").GetInt32());
+        Assert.Equal("default", aps.GetProperty("sound").GetString());
+        Assert.Equal("notification-1", payload.RootElement.GetProperty("notificationId").GetString());
+    }
+
+    [Theory]
+    [InlineData("push.new_notification")]
+    [InlineData("push.place_review_added_unknown_actor")]
+    [InlineData("push.dish_review_added_unknown_actor")]
+    [InlineData("push.friend_request_sent_unknown_actor")]
+    public async Task SendAsync_LocalizedAlertWithoutArgumentsDoesNotLeakEnglishFallback(string key)
+    {
+        var handler = new RecordingHttpMessageHandler(_ => JsonResponse(HttpStatusCode.OK));
+        var sender = CreateSender(handler);
+        await sender.SendAsync(CreateRequest() with { BodyLocalizationKey = key }, CancellationToken.None);
+
+        using var payload = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
+        var alert = payload.RootElement.GetProperty("aps").GetProperty("alert");
+        Assert.Equal(key, alert.GetProperty("loc-key").GetString());
+        Assert.False(alert.TryGetProperty("body", out _));
+        Assert.False(alert.TryGetProperty("loc-args", out _));
+    }
+
+    [Theory]
     [InlineData(200, null, true, false, null)]
     [InlineData(400, "BadDeviceToken", false, true, 400)]
     [InlineData(410, "Unregistered", false, true, 410)]
