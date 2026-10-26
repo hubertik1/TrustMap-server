@@ -75,7 +75,7 @@ retired through normal account deletion when no longer needed.
 5. Test account deletion with a disposable fixture, then provision the final one.
 6. Add credentials to App Review Information and the supplied steps to Notes. Include
    `https://trustmap.hubertik.com/terms/` and explain that Terms of Service is
-   available on the welcome screen, in Demo access, and in Settings → About.
+   available on the welcome screen and in Settings → About.
 
 The published Terms of Service and community rules link to Apple’s standard EULA.
 The app’s Local and Prod configurations include that URL. This does not introduce

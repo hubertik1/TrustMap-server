@@ -43,7 +43,7 @@ def main():
         'Settings → Privacy → Blocked Users allows unblocking. This does not restore friendship.\n'
         'Friends includes incoming/outgoing requests. Search for Zoe to try sending a new request.\n'
         'Profiles, venues and reviews labeled Demo are fictional.\n'
-        'Terms: https://trustmap.hubertik.com/terms/ (also on welcome, demo sign-in and Settings → About).\n'
+        'Terms: https://trustmap.hubertik.com/terms/ (also on welcome and Settings → About).\n'
         'These credentials work after the generated settings are applied to the deployed API.\n',
     ]
     for path, content in zip(paths, contents):

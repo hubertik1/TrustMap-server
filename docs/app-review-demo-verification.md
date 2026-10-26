@@ -56,7 +56,7 @@ wykonano na oddzielnym koncie QA.
 | Produkcyjne API demo | **Niedostępne: HTTP 404**. Trzeba wdrożyć backend i włączyć wygenerowaną konfigurację, a potem powtórzyć logowanie z docelowego buildu. |
 | Polityka prywatności | Otwiera się w przeglądarce pod `https://trustmap.hubertik.com/privacy/`. |
 | Pomoc i kontakt | Otwierają się pod `https://trustmap.hubertik.com/support/`; widoczny adres kontaktowy. |
-| Regulamin/EULA | Aktualizacja 26 października: regulamin i zasady społeczności są opublikowane pod `https://trustmap.hubertik.com/terms/`, z linkiem do standardowej EULA Apple. W kodzie aplikacji podpięto `TrustMapTermsOfServiceURL` dla Local i Prod: ekran powitalny, formularz demo i Settings → About. Wymaga dystrybucji nowego buildu aplikacji. |
+| Regulamin/EULA | Aktualizacja 26 października: regulamin i zasady społeczności są opublikowane pod `https://trustmap.hubertik.com/terms/`, z linkiem do standardowej EULA Apple. W kodzie aplikacji podpięto `TrustMapTermsOfServiceURL` dla Local i Prod: ekran powitalny i Settings → About. Wymaga dystrybucji nowego buildu aplikacji. |
 
 Weryfikacja zgłoszeń potwierdza lokalny tryb plików `.eml`. Nie potwierdza doręczenia
 do produkcyjnej skrzynki ani czasu reakcji operatora. Trzeba zapewnić regularny
