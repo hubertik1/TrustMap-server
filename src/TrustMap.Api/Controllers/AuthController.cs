@@ -12,8 +12,24 @@ namespace TrustMap.Api.Controllers;
 [Route("auth")]
 public sealed class AuthController(
     SessionService sessionService,
+    DemoAccessService demoAccessService,
     ProfileQueryService profileQueryService) : ControllerBase
 {
+    [HttpPost("demo")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [ProducesResponseType<AuthSessionDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<AuthSessionDto>> SignInToDemo(
+        [FromBody] DemoAuthRequest request, CancellationToken cancellationToken)
+    {
+        var session = await demoAccessService.SignInAsync(request.Username, request.Password,
+            Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken);
+        var profile = await profileQueryService.GetProfileAsync(session.User.Id, session.User.Id, cancellationToken);
+        return Ok(new AuthSessionDto(session.AccessToken, session.AccessTokenExpiresAtUtc,
+            session.RefreshToken, session.RefreshTokenExpiresAtUtc, profile));
+    }
+
     [HttpPost("apple")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]

@@ -270,6 +270,13 @@ dotnet test TrustMap.slnx
 
 The tests cover authentication, token refresh, logout, friend requests, friendships, privacy rules, map projections, feed projections, upload security, media delivery, notifications, quotas and account deletion.
 
+## App Review Demo Access
+
+The iOS welcome screen supports a prepared demo account via `POST /auth/demo`.
+See [demo access setup and reviewer instructions](docs/demo-access.md) for private
+credential generation, hosting configuration, sample data and reset behavior.
+Demo access is disabled until configured and does not change Sign in with Apple.
+
 ## Deployment Notes
 
 Before running in production:

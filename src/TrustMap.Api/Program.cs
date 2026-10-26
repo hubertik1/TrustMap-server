@@ -105,6 +105,11 @@ builder.Services.AddScoped<CategoryAssignmentService>();
 builder.Services.AddScoped<CategoryMembershipService>();
 builder.Services.AddScoped<HandleGenerator>();
 builder.Services.AddScoped<SessionService>();
+builder.Services.AddScoped<DemoAccessService>();
+builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddOptions<DemoAccessOptions>()
+    .Bind(builder.Configuration.GetSection(DemoAccessOptions.SectionName)).ValidateOnStart();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<DemoAccessOptions>, DemoAccessOptionsValidator>();
 builder.Services.AddHostedService<AppleSignInWarmupService>();
 builder.Services.AddScoped<SocialGraphService>();
 builder.Services.AddScoped<PrivacyAccessService>();

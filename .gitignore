@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+.private/
 *.p8
 
 # Local uploaded photos

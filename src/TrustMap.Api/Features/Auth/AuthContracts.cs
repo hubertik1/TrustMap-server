@@ -22,6 +22,15 @@ public sealed class AppleAuthRequest
     public string? PreferredHandle { get; init; }
 }
 
+public sealed class DemoAuthRequest
+{
+    [Required, StringLength(100)]
+    public string Username { get; init; } = null!;
+
+    [Required, StringLength(256)]
+    public string Password { get; init; } = null!;
+}
+
 public sealed class RefreshTokenRequest
 {
     [Required]
