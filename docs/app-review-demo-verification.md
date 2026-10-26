@@ -1,7 +1,10 @@
-# Weryfikacja konta demo — 25 października 2026
+# Weryfikacja konta demo — aktualizacja 26 października 2026
 
-Konto demo sprawdzono lokalnie. Dostęp przez produkcyjny adres API nie jest jeszcze
-gotowy dla Apple: `POST /auth/demo` zwrócił HTTP 404.
+Backend z obsługą demo wdrożono 26 października na istniejący produkcyjny App Service
+`app-trust-map` w Azure Poland Central. Włączono pięć ustawień `DemoAccess__*`.
+`POST /auth/demo` zwraca HTTP 200 i pozwala korzystać z przygotowanej zawartości.
+Wcześniejsze testy funkcjonalne opisane poniżej wykonano lokalnie; zakres dodatkowego
+testu produkcyjnego podano osobno.
 
 ## Zakres i wyniki
 
@@ -53,7 +56,7 @@ wykonano na oddzielnym koncie QA.
 
 | Element | Wynik |
 |---|---|
-| Produkcyjne API demo | **Niedostępne: HTTP 404**. Trzeba wdrożyć backend i włączyć wygenerowaną konfigurację, a potem powtórzyć logowanie z docelowego buildu. |
+| Produkcyjne API demo | **Działa: HTTP 200**. Wdrożone i skonfigurowane 26 października. Test API obejmuje logowanie, treści, media, odnowienie i wylogowanie. Pozostaje użyć docelowego buildu aplikacji w App Store Connect. |
 | Polityka prywatności | Otwiera się w przeglądarce pod `https://trustmap.hubertik.com/privacy/`. |
 | Pomoc i kontakt | Otwierają się pod `https://trustmap.hubertik.com/support/`; widoczny adres kontaktowy. |
 | Regulamin/EULA | Aktualizacja 26 października: regulamin i zasady społeczności są opublikowane pod `https://trustmap.hubertik.com/terms/`, z linkiem do standardowej EULA Apple. W kodzie aplikacji podpięto `TrustMapTermsOfServiceURL` dla Local i Prod: ekran powitalny i Settings → About. Wymaga dystrybucji nowego buildu aplikacji. |
@@ -65,3 +68,13 @@ odbiór tych plików albo skonfigurować i sprawdzić SMTP.
 Skrypty HTTP otrzymały 403 ze stron marketingowych, ale przeglądarka otworzyła
 politykę i pomoc poprawnie. Wyniku narzędzi HTTP nie potraktowano jako awarii tych
 stron dla użytkownika.
+
+## Produkcja — 26 października 2026
+
+- Publikacja Release, linux-x64, framework-dependent; istniejący plan Free F1 i .NET 10. Wdrożenie ZIP zakończyło się sukcesem.
+- Przed wdrożeniem wykonano spójną kopię SQLite i poprzednich plików aplikacji. Po wdrożeniu `PRAGMA quick_check` potwierdził integralność bazy; wszystkie wcześniejsze identyfikatory rekordów oraz pliki mediów pozostały zachowane. Istniejące ustawienia produkcji pozostały bez zmian. Kopie i dane dostępowe są prywatne, poza Gitem.
+- `/health/live` i `/health/ready`: HTTP 200.
+- Logowanie demo: HTTP 200; 3 znajomych, 1 zaproszenie przychodzące i 1 wychodzące, 7 widocznych recenzji miejsc, 6 recenzji dań, 13 pozycji feedu, 5 powiadomień, brak blokad. Publiczny katalog zawiera również wcześniejsze miejsca; demo dodaje 6 fikcyjnych miejsc.
+- Zdjęcie recenzji i awatar: HTTP 200 z autoryzacją. Odnowienie sesji i wylogowanie zakończyły się powodzeniem.
+- Produkcyjny test nie usuwał treści ani konta i nie zmieniał znajomości czy blokad. Scenariusze modyfikacji, zgłaszania i blokowania pozostają potwierdzone wcześniejszymi testami lokalnymi.
+- Moderacja na produkcji używa prywatnych plików `.eml`, bez SMTP. Operator musi je regularnie przeglądać; samo zapisanie pliku nie oznacza doręczenia do skrzynki ani reakcji moderatora.
